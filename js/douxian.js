@@ -258,10 +258,17 @@ class DouxianGame {
       const el = this.realmEl(0, z, false, true);
       const need = DX_ZONES[z].size - this.field[0][z].length;
       const pw = el.querySelector('.pw');
-      if (this.phase === 'place' && need > 0) pw.innerHTML = '<span style="color:#ffd7a8">缺 ' + need + '</span>';
-      else if (this.field[0][z].length === DX_ZONES[z].size) {
-        const p = dxPower(this.field[0][z], z, this.round); pw.textContent = p.n + ' ' + p.p;
-      }
+      if (need === 0) {
+        const p = dxPower(this.field[0][z], z, this.round);
+        pw.textContent = p.n + ' ' + p.p;
+      } else if (this.phase === 'place' && z === this.activeZone) {
+        /* 当前区域：选够了就把预览的牌型和灵力值直接标在这一格下面 */
+        const picked = this.hands[0].filter(c => this.sel.has(c.id));
+        if (picked.length === need) {
+          const p = dxPower(this.field[0][z].concat(picked), z, this.round);
+          pw.innerHTML = '<span class="pw-prev">' + p.n + ' ' + p.p + '</span>';
+        } else pw.innerHTML = '<span style="color:#ffd7a8">还需 ' + (need - picked.length) + '</span>';
+      } else pw.innerHTML = '<span style="opacity:.75">缺 ' + need + '</span>';
       wrap.appendChild(el);
     }
     box0.appendChild(wrap);
@@ -330,37 +337,8 @@ class DouxianGame {
     if (full) actBtn('确认布阵', '', () => { a.innerHTML = ''; this.resolve(); });
   }
   tipPlace() {
-    const need = this.needCounts(0).reduce((a, b) => a + b, 0);
-    const totalNeed = this.placeTotal || need;
-    const zs = (this.round === 1 ? [0, 1] : [0, 1, 2]).map(z => {
-      const full = this.field[0][z].length >= DX_ZONES[z].size;
-      const act = z === this.activeZone;
-      if (full) {
-        const p = dxPower(this.field[0][z], z, this.round);
-        return '<span style="' + (act ? 'text-decoration:underline' : '') + '">' + DX_ZONES[z].n
-          + ' <b class="gold-txt">' + p.n + ' ' + p.p + '</b></span>';
-      }
-      return '<span style="' + (act ? 'text-decoration:underline' : '') + '">' + DX_ZONES[z].n
-        + ' <span style="color:#ffd7a8">缺 ' + (DX_ZONES[z].size - this.field[0][z].length) + '</span></span>';
-    }).join('　');
-    /* 当前区域 + 已选牌的预览 */
-    let preview = '点一个区域，会自动帮你选好该区最大的牌，确认后才放入';
-    const z = this.activeZone;
-    if (z >= 0 && this.field[0][z].length < DX_ZONES[z].size) {
-      const need2 = DX_ZONES[z].size - this.field[0][z].length;
-      const picked = this.hands[0].filter(c => this.sel.has(c.id));
-      if (picked.length === need2) {
-        const p = dxPower(this.field[0][z].concat(picked), z, this.round);
-        preview = '<b class="gold-txt">' + DX_ZONES[z].n + '界　' + p.n + ' ' + p.p + '</b>'
-          + '　<span style="opacity:.85">点「确认放入」放上去，也可点手牌自行替换</span>';
-      } else {
-        preview = DX_ZONES[z].n + '界还需选 <b class="gold-txt">' + (need2 - picked.length) + '</b> 张';
-      }
-    } else if (need === 0) preview = '三个区域都放满了，点「确认布阵」开始斗法';
-    this.tip.innerHTML = '<div class="gold-txt" style="font-size:13px;letter-spacing:2px">第 ' + this.round + ' 回合 · 布阵'
-      + '<span style="font-size:11px;letter-spacing:0"> （已放入 ' + (totalNeed - need) + '/' + totalNeed + '）</span></div>'
-      + '<div style="font-size:11px;margin-top:1px">' + zs + '</div>'
-      + '<div class="zone-line">' + preview + '</div>';
+    this.tip.innerHTML = '<div class="gold-txt" style="font-size:14px;letter-spacing:3px">第 '
+      + this.round + ' 回合 · 布阵</div>';
     if (this.phase === 'place') this.placeBtns();
   }
   autoPlace(silent) {
