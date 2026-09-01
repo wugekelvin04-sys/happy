@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.9.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -413,10 +413,11 @@ function pulseRingRect(r) {
 }
 const pulseRing = el => { if (el) pulseRingRect(rectOf(el)); };
 /* 欢乐豆从输家飞到赢家：节点数压到 6 个以内 */
-function flyBeansRect(a, b, amount) {
+function flyBeansRect(a, b, amount, streams) {
   if (!a || !b || REDUCED) return;
   const layer = $('#flyLayer');
-  const n = Math.max(3, Math.min(6, Math.round(Math.log10(Math.max(10, Math.abs(amount))) * 1.6)));
+  const cap = streams > 4 ? 3 : streams > 2 ? 4 : 6;      // 股数多时每股少放几颗，保持总节点数可控
+  const n = Math.max(2, Math.min(cap, Math.round(Math.log10(Math.max(10, Math.abs(amount))) * 1.6)));
   const ax = a.left + a.width / 2 - 8, ay = a.top + a.height / 2 - 8;
   const dx = (b.left + b.width / 2 - 8) - ax, dy = (b.top + b.height / 2 - 8) - ay;
   const frag = document.createDocumentFragment(), els = [];
@@ -440,22 +441,24 @@ function flyBeans(fromEl, toEl, amount) {
   const a = rectOf(fromEl), b = rectOf(toEl);
   flyBeansRect(a, b, amount); pulseRingRect(b);
 }
-/* 按每家的净输赢，成对播放飞豆（输家 → 赢家）。
-   先把所有座位的坐标一次读完，再统一建元素，避免反复触发同步重排。 */
+/* 按每家的净输赢播放飞豆。
+   同一次结算里可能有多个赢家和多个输家（比如 2 人赢 2 人输），
+   所以每个输家的豆按各赢家的赢豆比例拆成多股分别飞过去。
+   所有座位的坐标先一次读完，避免反复触发同步重排。 */
 function beanFlow(anchors, deltas) {
-  const win = [], lose = [];
-  deltas.forEach((d, i) => { if (d > 0) win.push([i, d]); else if (d < 0) lose.push([i, -d]); });
-  if (!win.length || !lose.length) return;
+  const wins = [], loses = [];
+  deltas.forEach((d, i) => { if (d > 0) wins.push([i, d]); else if (d < 0) loses.push([i, -d]); });
+  if (!wins.length || !loses.length) return;
   const rects = anchors.map(e => e ? rectOf(e) : null);   // 只读这一次
-  win.sort((a, b) => b[1] - a[1]);
-  const glow = new Set();
-  lose.forEach(([li, la]) => {
-    let best = win[0];
-    for (const w of win) if (w[1] >= la) { best = w; break; }
-    flyBeansRect(rects[li], rects[best[0]], la);
-    glow.add(best[0]);
+  const totalWin = wins.reduce((s, w) => s + w[1], 0) || 1;
+  const streams = wins.length * loses.length;
+  loses.forEach(([li, la]) => {
+    wins.forEach(([wi, wa]) => {
+      const share = la * (wa / totalWin);
+      if (share > 0) flyBeansRect(rects[li], rects[wi], share, streams);
+    });
   });
-  glow.forEach(i => pulseRingRect(rects[i]));
+  wins.forEach(([wi]) => pulseRingRect(rects[wi]));
 }
 
 /* 结算封顶：每次结算不能超过场次封顶，也不能超过输家全部欢乐豆 */

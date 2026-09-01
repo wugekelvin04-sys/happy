@@ -185,7 +185,7 @@ class SanguoGame {
       d.innerHTML = '<div class="cn">' + cp.n + '</div>';
       d.appendChild(cc);
       const q = document.createElement('div'); q.className = 'cq';
-      q.textContent = '公共 ' + cp.pub + ' · 出 ' + (5 - cp.pub) + ' 张';
+      q.textContent = '出 ' + (5 - cp.pub) + ' 张';
       d.appendChild(q);
       /* 只有选中的阵营才显示当前倍率 */
       const bx = document.createElement('div'); bx.className = 'cbest';
@@ -219,7 +219,6 @@ class SanguoGame {
     this.camp = ci;
     this.sel = per ? new Set(per.own.map(c => c.id)) : new Set();
     this.render();
-    if (per) toast(SG_CAMPS[ci].n + '国最优：' + per.ev.name + ' ×' + per.ev.mult, 1200);
   }
   render() {
     for (let i = 1; i < 5; i++) {
@@ -228,9 +227,9 @@ class SanguoGame {
     }
     if (!this.busy) { this.renderCamps(); for (let i = 0; i < 5; i++) this.slots[i].innerHTML = ''; }
     const hd = this.c.hand; hd.innerHTML = '';
-    fitHand(hd, this.hands[0].length, 42);
+    fitHand(hd, this.hands[0].length, 56);
     this.hands[0].forEach(c => {
-      const e = cardEl(c); e.style.setProperty('--cw', '42px');
+      const e = cardEl(c); e.style.setProperty('--cw', '56px');
       if (this.sel.has(c.id)) e.classList.add('sel');
       e.onclick = () => {
         if (this.busy) return;
@@ -270,7 +269,7 @@ class SanguoGame {
   /* 一张牌的正面（底池的牌换底色） */
   faceEl(c, pubSet, big) {
     const e = cardEl(c, '');
-    e.style.setProperty('--cw', big ? '38px' : '31px');
+    e.style.setProperty('--cw', big ? '50px' : '40px');
     if (pubSet.has(c.id)) e.classList.add('pub');
     return e;
   }
@@ -281,8 +280,8 @@ class SanguoGame {
     for (let k = 0; k < 5; k++) {
       const f = document.createElement('div'); f.className = 'flipper';
       const bk = backEl('');
-      bk.style.width = (big ? 38 : 31) + 'px';
-      bk.style.height = Math.round((big ? 38 : 31) * 1.44) + 'px';
+      bk.style.width = (big ? 50 : 40) + 'px';
+      bk.style.height = Math.round((big ? 50 : 40) * 1.44) + 'px';
       f.appendChild(bk); row.appendChild(f);
     }
     sl.appendChild(row);

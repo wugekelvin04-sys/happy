@@ -104,7 +104,7 @@ class DouxianGame {
     this.field = [0, 1, 2, 3].map(() => [[], [], []]);   // [player][zone] = cards
     this.deck = []; this.used = [];
     this.round = 0; this.reset = [false, false, false, false];
-    this.sel = new Set(); this.activeZone = 0; this.phase = '';
+    this.sel = new Set(); this.activeZone = 0; this.phase = ''; this.curZone = -1;
   }
   draw(n) {
     const out = [];
@@ -147,14 +147,17 @@ class DouxianGame {
   realmEl(pi, zi, mini, reveal) {
     const cards = this.field[pi][zi], size = DX_ZONES[zi].size;
     const locked = pi === 0 ? (this.keep0 ? this.keep0[zi] : 0) : 0;   // 上回合飞升上来的张数
+    const show = this.phase === 'show';
+    const hot = show && this.curZone === zi;
     const d = document.createElement('div');
-    d.className = 'realm' + (!mini && zi === this.activeZone && this.phase === 'place' ? ' act' : '');
+    d.className = 'realm'
+      + (!mini && zi === this.activeZone && this.phase === 'place' ? ' act' : '')
+      + (hot ? ' hot' : (show && this.curZone >= 0 ? ' cold' : ''));
     const nm = document.createElement('div'); nm.className = 'rn'; nm.textContent = DX_ZONES[zi].n;
     d.appendChild(nm);
     const rs = document.createElement('div'); rs.className = 'rs';
-    /* 斗法（结算）阶段把牌放大 */
-    const big = this.phase === 'show';
-    const cw = mini ? (big ? 28 : 21) : (big ? 42 : 30);
+    /* 斗法阶段把牌放大，正在比拼的那一界再大一号 */
+    const cw = mini ? (hot ? 34 : show ? 26 : 21) : (hot ? 50 : show ? 38 : 30);
     for (let i = 0; i < size; i++) {
       if (cards[i]) {
         if (reveal === false) {
@@ -233,16 +236,20 @@ class DouxianGame {
     this.render(); this.tipPlace();
   }
   render(revealAll) {
+    const showOthers = this.phase === 'show';           // 只有斗法阶段才亮别家的牌
     for (let i = 1; i < 4; i++) {
       const box = this.slots[i]; box.innerHTML = '';
-      const mr = document.createElement('div'); mr.className = 'mini-realms' + (i === 3 ? ' lft' : '');
-      for (let z = 0; z < 3; z++) {
-        if (this.round === 1 && z === 2) continue;
-        mr.appendChild(this.realmEl(i, z, true, revealAll ? true : false));
+      if (showOthers) {
+        const mr = document.createElement('div'); mr.className = 'mini-realms' + (i === 3 ? ' lft' : '');
+        for (let z = 0; z < 3; z++) {
+          if (this.round === 1 && z === 2) continue;
+          mr.appendChild(this.realmEl(i, z, true, true));
+        }
+        box.appendChild(mr);
       }
-      box.appendChild(mr);
       this.seats[i].querySelector('.bn').textContent = fmt(Math.max(0, this.P[i].beans + this.delta[i]));
-      this.seats[i].querySelector('.hs').textContent = '手牌 ' + this.hands[i].length;
+      this.seats[i].querySelector('.hs').textContent =
+        this.phase === 'place' ? '布阵中…' : '手牌 ' + this.hands[i].length;
     }
     const box0 = this.slots[0]; box0.innerHTML = '';
     const wrap = document.createElement('div'); wrap.className = 'realms';
@@ -260,9 +267,9 @@ class DouxianGame {
     box0.appendChild(wrap);
     this.myBanner = this.myBanner || null;
     const hd = this.c.hand; hd.innerHTML = '';
-    fitHand(hd, this.hands[0].length, 38);
+    fitHand(hd, this.hands[0].length, 46);
     this.hands[0].forEach(c => {
-      const e = cardEl(c); e.style.setProperty('--cw', '38px');
+      const e = cardEl(c); e.style.setProperty('--cw', '46px');
       if (this.sel.has(c.id)) e.classList.add('sel');
       e.onclick = () => this.tapCard(c);
       hd.appendChild(e);
@@ -382,16 +389,35 @@ class DouxianGame {
     });
   }
   /* ---------- 结算 ---------- */
-  banner(i, txt, val, rankIdx) {
+  banner(i, txt, val, rankIdx, big) {
     let host = this.slots[i].querySelector('.pwr-wrap');
     if (!host) { host = document.createElement('div'); host.className = 'pwr-wrap'; this.slots[i].insertBefore(host, this.slots[i].firstChild); }
     if (!host) return;
     host.innerHTML = '';
     const d = document.createElement('div');
-    d.className = 'pwr-banner' + (rankIdx === 0 ? ' win' : '');
+    d.className = 'pwr-banner' + (rankIdx === 0 ? ' win' : '') + (big ? ' big' : '');
     d.innerHTML = '<span>' + txt + '</span><span>🔥</span><span class="v">' + val + '</span>'
       + '<span class="rank-badge rk' + (rankIdx + 1) + '">' + (rankIdx + 1) + '</span>';
     host.appendChild(d);
+  }
+  /* 这一界赢豆的玩家弹「胜」标（可能同时有 2 人赢） */
+  async winFx(rd) {
+    const wins = [0, 1, 2, 3].filter(i => rd[i] > 0);
+    if (!wins.length) return;
+    wins.forEach(i => {
+      const host = this.slots[i];
+      if (!host) return;
+      if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+      const chip = document.createElement('div');
+      chip.className = 'win-chip'; chip.textContent = '胜';
+      host.appendChild(chip);
+      anim(chip, { scale: [0, 1.35, 1], opacity: [0, 1, 1] },
+        { duration: .42, ease: MO ? Motion.backOut : 'ease-out' });
+      const bn = host.querySelector('.pwr-banner');
+      if (bn) anim(bn, { scale: [1, 1.14, 1] }, { duration: .45, ease: 'ease-out' });
+      setTimeout(() => chip.remove(), 1600);
+    });
+    await sleep(520);
   }
   clearBanners() {
     for (let i = 0; i < 4; i++) { const h = this.slots[i].querySelector('.pwr-wrap'); if (h) h.innerHTML = ''; }
@@ -406,11 +432,13 @@ class DouxianGame {
     const total = [0, 0, 0, 0];
     for (let zi = 0; zi < zones.length; zi++) {
       const z = zones[zi];
-      this.tip.innerHTML = '<div class="gold-txt" style="font-size:14px;letter-spacing:2px">' + DX_ZONES[z].n + '界斗法</div>'
+      this.curZone = z;
+      this.render(true);                              // 高亮当前正在比拼的那一界
+      this.tip.innerHTML = '<div class="gold-txt" style="font-size:15px;letter-spacing:3px">' + DX_ZONES[z].n + '界斗法</div>'
         + '<div class="zone-line">' + DX_ZONES[z].n + '界：' + DX_ORDER[z].map((n, k) => k === 0 ? '<b>' + n + '</b>' : n).join(' &gt; ') + '</div>';
       /* 名次 + 横幅 */
       const ord = [0, 1, 2, 3].slice().sort((a, b) => pw[b][zi].p - pw[a][zi].p);
-      ord.forEach((pi, k) => this.banner(pi, pw[pi][zi].n, pw[pi][zi].p, k));
+      ord.forEach((pi, k) => this.banner(pi, pw[pi][zi].n, pw[pi][zi].p, k, true));
       await sleep(1400);
       if (this.c.over) return;
       /* 两两结算 */
@@ -423,6 +451,9 @@ class DouxianGame {
           this.P[l].beans + this.delta[l] + total[l] + rd[l], this.c.game.cap);
         rd[w] += amt; rd[l] -= amt;
       }
+      /* 胜利动画：这一界赢豆的每一家都弹一个「胜」（可能不止一人） */
+      await this.winFx(rd);
+      if (this.c.over) return;
       const before = total.slice();
       for (let i = 0; i < 4; i++) {
         total[i] += rd[i];
@@ -431,10 +462,12 @@ class DouxianGame {
         floatBean(this.beanAnchor(i), rd[i]);
       }
       beanFlow(this.anchors, rd);
-      await sleep(2100);
+      await sleep(2000);
       if (this.c.over) return;
       this.clearBanners();
     }
+    this.curZone = -1;
+    this.render(true);
     /* 全胜 */
     const sweepWin = [], sweepLose = [], sweepPairs = [];
     const sd = [0, 0, 0, 0];

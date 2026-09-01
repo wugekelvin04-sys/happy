@@ -166,7 +166,7 @@ body.land .match-wrap{gap:10px;padding:8px}
 .card.wild .c-tl,.card.wild .c-big{color:#a34a06}
 .card.chance{background:linear-gradient(150deg,#ffe9cf,#ffb45c);border-color:#c96a2a}
 .card.chance .c-tl,.card.chance .c-big{color:#8a3300}
-.card.sel{transform:translateY(-13px)}
+.card.sel{transform:translateY(-15px)}
 .card.dim{filter:brightness(.6) saturate(.5)}
 /* 上一回合飞升上来的牌：锁定 */
 .card.locked{box-shadow:0 0 0 1.5px rgba(255,215,106,.85),0 1px 3px rgba(0,0,0,.45);filter:brightness(.92)}
@@ -198,7 +198,7 @@ body.land .match-wrap{gap:10px;padding:8px}
 .card .ren{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:70%;height:70%;border-radius:50%;
   background:radial-gradient(circle at 35% 30%,#9fe0ff,#2f7fd0 60%,#12447a);color:#fff;font-weight:900;
   display:flex;align-items:center;justify-content:center;font-size:calc(var(--cw,46px)*.42);box-shadow:0 0 6px rgba(80,180,255,.9)}
-.hand{display:flex;justify-content:center;align-items:flex-end;padding:0 6px;min-height:60px}
+.hand{display:flex;justify-content:center;align-items:flex-end;padding:0 6px;min-height:78px}
 .hand .card{margin-left:var(--ov,-20px)}
 .hand .card:first-child{margin-left:0}
 .slot{width:30px;height:43px;border-radius:5px;border:1px dashed rgba(255,255,255,.45);background:rgba(255,255,255,.08);flex:none}
@@ -219,6 +219,19 @@ body.land .match-wrap{gap:10px;padding:8px}
 .realm .rs{display:flex;gap:2px}
 /* 斗法阶段：牌放大 */
 #table.reveal .center-zone{width:352px}
+/* 斗法：正在比拼的那一界高亮放大 */
+.realm.hot{background:rgba(255,215,106,.2);border-color:var(--gold);
+  box-shadow:0 0 0 1px rgba(255,215,106,.7),0 0 16px rgba(255,215,106,.45)}
+.realm.hot .rn{font-size:12px;color:var(--gold);font-weight:800}
+.realm.hot .pw{font-size:14px;font-weight:900;color:var(--gold);min-height:18px;
+  text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.realm.cold{opacity:.5}
+.pwr-banner.big{padding:2px 16px;font-size:13px}
+.pwr-banner.big .v{font-size:16px}
+.win-chip{position:absolute;left:50%;top:-9px;transform:translateX(-50%);z-index:8;
+  background:linear-gradient(#fff2b8,#ffb32e);color:#5a2f00;font-size:11px;font-weight:900;
+  border-radius:999px;padding:1px 9px;white-space:nowrap;pointer-events:none;
+  box-shadow:0 2px 8px rgba(0,0,0,.5)}
 #table.reveal .realm .rn{font-size:11px}
 #table.reveal .realm .pw{font-size:12px;min-height:15px}
 .realm .pw{font-size:10px;text-align:center;color:var(--gold);font-weight:800;min-height:13px}
@@ -269,7 +282,7 @@ body.land .match-wrap{gap:10px;padding:8px}
 .camp.act{box-shadow:0 0 0 2px var(--gold),0 0 12px rgba(255,215,106,.7)}
 .camp .cn{font-size:12px;font-weight:800;letter-spacing:2px}
 .camp .cc{display:flex;gap:2px;justify-content:center;min-height:31px;align-items:center}
-.camp .cq{font-size:10px;opacity:.85}
+.camp .cq{font-size:10px;opacity:.85;white-space:nowrap}
 .camp .cbest{font-size:10px;margin-top:2px;color:#ffe6bd;line-height:1.3}
 .camp .cbest b{color:#fff}
 .camp .cbest b.m{color:var(--gold);font-size:11px}
