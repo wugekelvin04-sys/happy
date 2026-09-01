@@ -167,6 +167,32 @@ body.land .match-wrap{gap:10px;padding:8px}
 .card.chance .c-tl,.card.chance .c-big{color:#8a3300}
 .card.sel{transform:translateY(-13px)}
 .card.dim{filter:brightness(.6) saturate(.5)}
+/* 上一回合飞升上来的牌：锁定 */
+.card.locked{box-shadow:0 0 0 1.5px rgba(255,215,106,.85),0 1px 3px rgba(0,0,0,.45);filter:brightness(.92)}
+.card.locked::after{content:'🔒';position:absolute;right:1px;top:0;font-size:8px;opacity:.9;line-height:1}
+/* 三国牌：底池（公共区）的牌换个底色 */
+.card.pub{background:linear-gradient(150deg,#fff2d2,#ffdc9a);border-color:#c98a2a;
+  box-shadow:0 0 0 1.5px rgba(255,190,90,.9),0 1px 3px rgba(0,0,0,.45)}
+.card.pub::after{content:'公';position:absolute;left:1px;bottom:0;font-size:8px;color:#8a5a10;font-weight:800;line-height:1}
+/* 翻牌 */
+.flipper{position:relative;transform-style:preserve-3d;backface-visibility:hidden;will-change:transform}
+.reveal-row{display:flex;gap:2px;justify-content:center}
+/* 八雀牌中央：牌堆 + 待选底池 */
+.deck-area{display:flex;align-items:center;gap:14px;justify-content:center}
+.deck-pile{position:relative;cursor:default}
+.deck-pile .cardback-count{width:46px;height:66px;font-size:0;border-width:2px}
+.deck-pile.hot{cursor:pointer}
+.deck-pile.hot .cardback-count{box-shadow:0 0 0 3px var(--gold),0 0 16px rgba(255,215,106,.85)}
+.deck-pile .num{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:15px;font-weight:900;
+  color:#fff;text-shadow:0 2px 4px #000;pointer-events:none}
+.deck-cap{font-size:11px;color:#dbeaff;text-align:center;margin-top:2px}
+.pool-area{display:flex;gap:5px;align-items:center}
+.pool-area .card{--cw:46px;transition:transform .12s}
+.pool-area .card.hot{cursor:pointer;box-shadow:0 0 0 2.5px var(--gold),0 0 14px rgba(255,215,106,.8)}
+.pool-area .card.hot:active{transform:translateY(-4px)}
+.pool-empty{font-size:11px;color:#9db8dd}
+/* 开牌阶段隐藏手牌区，把舞台让给中间的结算动画 */
+#table.reveal .t-bottom{display:none}
 .card.mini{--cw:28px} .card.tiny{--cw:23px} .card.xs{--cw:19px}
 .card .ren{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:70%;height:70%;border-radius:50%;
   background:radial-gradient(circle at 35% 30%,#9fe0ff,#2f7fd0 60%,#12447a);color:#fff;font-weight:900;

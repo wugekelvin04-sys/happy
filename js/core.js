@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -347,6 +347,10 @@ function flyCards(cards, fromRect, toRect, opts) {
     if (!cards.length) return res();
     cards.forEach((c, i) => {
       const e = opts.back ? backEl('') : cardEl(c, cls);
+      if (opts.cw) {
+        e.style.setProperty('--cw', opts.cw + 'px');
+        if (opts.back) { e.style.width = opts.cw + 'px'; e.style.height = Math.round(opts.cw * 1.44) + 'px'; }
+      }
       e.classList.add('fly-card');
       e.style.left = fromRect.left + 'px'; e.style.top = fromRect.top + 'px';
       layer.appendChild(e);
@@ -360,6 +364,15 @@ function flyCards(cards, fromRect, toRect, opts) {
     });
     setTimeout(res, 560 + cards.length * 70);
   });
+}
+/* 一张牌飞进手牌里它排好序之后的位置 */
+async function flyIntoHand(card, fromRect, handEl, cw) {
+  const el = handEl.querySelector('[data-id="' + card.id + '"]');
+  if (!el) return;
+  const to = rectOf(el);
+  el.style.visibility = 'hidden';
+  await flyCards([card], fromRect, to, { step: 0, cw: cw || 42 });
+  el.style.visibility = '';
 }
 /* 欢乐豆从输家飞到赢家 */
 function flyBeans(fromEl, toEl, amount) {

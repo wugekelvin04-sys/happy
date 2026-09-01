@@ -190,8 +190,8 @@ class BaqueGame {
   constructor(c) {
     this.c = c; this.P = c.players; this.n = 4;
     this.delta = [0, 0, 0, 0]; this.hands = [[], [], [], []];
-    this.hus = [0, 0, 0, 0]; this.auto = [false, false, false, false];
-    this.turns = [0, 0, 0, 0];
+    this.hus = [0, 0, 0, 0]; this.turns = [0, 0, 0, 0];
+    this.roundNo = 1;
     this.wall = []; this.discard = []; this.pool = []; this.dead = 0;
     this.seen = {}; this.sel = new Set();
     this.turn = 0; this.drawn = null;
@@ -204,12 +204,19 @@ class BaqueGame {
     for (let i = 0; i < 4; i++) d.push(mkCard(0, 'W', 2));   // 机会牌
     return shuffle(d);
   }
-  run() {
+  run() { this.layout(); this.newDeal(); }
+  /* 发一轮新牌 */
+  newDeal() {
     _bqCache.clear();
     this.wall = this.buildDeck();
+    this.hands = [[], [], [], []];
     for (let i = 0; i < 4; i++) this.hands[i] = this.wall.splice(0, 7).sort(bqSort);
-    this.layout(); this.render();
-    this.turn = 0;
+    this.pool = []; this.discard = []; this.dead = 0; this.seen = {};
+    this.turns = [0, 0, 0, 0]; this.sel = new Set(); this.drawn = null;
+    this.phase = ''; this.turn = 0;
+    this.c.act.innerHTML = '';
+    $('#tInfo').textContent = '底分 ' + fmt(this.c.base) + ' · 第 ' + this.roundNo + ' 轮';
+    this.render();
     setTimeout(() => this.step(), 600);
   }
   layout() {
@@ -240,41 +247,41 @@ class BaqueGame {
     }
     $('#tMyBeans').textContent = fmt(Math.max(0, this.P[0].beans + this.delta[0]));
     this.center.innerHTML = '';
-    const info = document.createElement('div');
-    info.style.cssText = 'font-size:11px;color:#dbeaff;display:flex;align-items:center;gap:6px';
-    info.innerHTML = '<span style="display:inline-block;width:18px;height:25px;border-radius:3px;'
-      + 'background:repeating-linear-gradient(45deg,#1d4ed8 0 3px,#1e3a8a 3px 6px);border:1px solid #fff"></span>'
-      + '牌堆剩余 <b class="gold-txt">' + this.wall.length + '</b> 张';
-    this.center.appendChild(info);
-    this.deckEl = info;
-    const pickable = this.phase === 'draw';
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;justify-content:center;gap:5px;align-items:center';
-    const lab = document.createElement('span');
-    lab.style.cssText = 'font-size:10px;color:#cfe0ff';
-    lab.textContent = this.pool.length ? '可捡' : '';
-    row.appendChild(lab);
+    const pickable = this.phase === 'draw' && this.turn === 0 && !this.c.over;
+    const area = document.createElement('div'); area.className = 'deck-area';
+    /* 牌堆（点它 = 摸牌） */
+    const pile = document.createElement('div'); pile.className = 'deck-pile' + (pickable ? ' hot' : '');
+    const bk = backEl(''); pile.appendChild(bk);
+    const num = document.createElement('div'); num.className = 'num'; num.textContent = this.wall.length;
+    pile.appendChild(num);
+    if (pickable) pile.onclick = () => { this.c.act.innerHTML = ''; this.drawCard(0); };
+    const pileWrap = document.createElement('div');
+    pileWrap.appendChild(pile);
+    const cap = document.createElement('div'); cap.className = 'deck-cap';
+    cap.textContent = pickable ? '点这里摸牌' : '牌堆';
+    pileWrap.appendChild(cap);
+    area.appendChild(pileWrap);
+    /* 待选底池（最近 4 张） */
+    const poolWrap = document.createElement('div');
+    const pa = document.createElement('div'); pa.className = 'pool-area';
+    if (!this.pool.length) { const em = document.createElement('span'); em.className = 'pool-empty'; em.textContent = '底池暂无牌'; pa.appendChild(em); }
     this.pool.forEach(d => {
-      const e = cardEl(d.c, 'mini');
-      if (pickable) {
-        e.style.cursor = 'pointer';
-        e.style.boxShadow = '0 0 0 2px #ffd76a,0 0 10px rgba(255,215,106,.7)';
-        e.onclick = () => this.takeFromPool(d);
-      } else e.style.filter = 'brightness(.85)';
-      row.appendChild(e);
+      const e = cardEl(d.c, '');
+      if (pickable) { e.classList.add('hot'); e.onclick = () => this.takeFromPool(d); }
+      else e.style.filter = 'brightness(.85)';
+      pa.appendChild(e);
     });
-    if (this.dead) {
-      const dz = document.createElement('span');
-      dz.style.cssText = 'font-size:10px;color:#9db8dd;margin-left:4px';
-      dz.textContent = '已弃 ' + this.dead;
-      row.appendChild(dz);
-    }
-    this.center.appendChild(row);
-    this.poolEl = row;
+    poolWrap.appendChild(pa);
+    const cap2 = document.createElement('div'); cap2.className = 'deck-cap';
+    cap2.textContent = (pickable ? '点一张直接拿走' : '底池（最近 4 张）') + (this.dead ? '　已废 ' + this.dead : '');
+    poolWrap.appendChild(cap2);
+    area.appendChild(poolWrap);
+    this.center.appendChild(area);
+    this.deckEl = pile; this.poolEl = pa;
     for (let i = 0; i < 4; i++) {
       this.slots[i].innerHTML = '';
       const last = this.discard[this.discard.length - 1];
-      if (last && last.by === i) this.slots[i].appendChild(cardEl(last.c, 'tiny'));
+      if (last && last.by === i && !last.dead) this.slots[i].appendChild(cardEl(last.c, 'tiny'));
     }
     const hd = this.c.hand; hd.innerHTML = '';
     fitHand(hd, this.hands[0].length, 42);
@@ -283,12 +290,12 @@ class BaqueGame {
       if (this.sel.has(c.id)) e.classList.add('sel');
       if (this.drawn === c.id) e.style.marginLeft = '10px';
       e.onclick = () => {
-        if (this.c.over || this.auto[0] || this.hands[0].length !== 8) return;
+        if (this.c.over || this.phase !== 'play' || this.hands[0].length !== 8) return;
         this.sel = new Set([c.id]); this.render();
       };
       hd.appendChild(e);
     });
-    let ex = this.hus[0] ? '已胡 ' + this.hus[0] + ' 次' : '';
+    let ex = '第 ' + this.roundNo + ' 轮' + (this.hus[0] ? ' · 已胡 ' + this.hus[0] + ' 次' : '');
     if (!ex && this.hands[0].length === 7) {
       const w = bqWaits(this.hands[0], this.seen);
       if (w.waits.length) ex = '听' + w.waits.length + '种·最高' + w.bestMult + '番';
@@ -302,7 +309,7 @@ class BaqueGame {
     if (this.c.over) return;
     if (!this.wall.length) return this.finish();
     const i = this.turn;
-    if (i === 0 && !this.auto[0]) { this.phase = 'draw'; this.render(); return this.myDraw(); }
+    if (i === 0) { this.phase = 'draw'; this.render(); return this.myDraw(); }
     await sleep(420 + rnd(240));
     if (this.c.over) return;
     const pick = this.aiPick(i);
@@ -312,16 +319,13 @@ class BaqueGame {
   /* 玩家自己选：摸牌 或 从最近 4 张里捡一张 */
   myDraw() {
     const a = this.c.act; a.innerHTML = '';
-    actBtn('摸牌', '', async () => { a.innerHTML = ''; await this.drawCard(0); });
-    if (this.pool.length) {
-      const tip = document.createElement('span'); tip.className = 'pill';
-      tip.style.fontSize = '11px'; tip.textContent = '或点中间高亮的牌捡一张';
-      a.appendChild(tip);
-    }
+    const tip = document.createElement('span'); tip.className = 'pill'; tip.style.fontSize = '11px';
+    tip.textContent = this.pool.length ? '点牌堆摸牌，或从底池点一张拿走' : '点中间的牌堆摸牌';
+    a.appendChild(tip);
     this.tingBtn();
   }
   takeFromPool(d) {
-    if (this.phase !== 'draw' || this.turn !== 0 || this.auto[0] || this.c.over) return;
+    if (this.phase !== 'draw' || this.turn !== 0 || this.c.over) return;
     this.c.act.innerHTML = '';
     this.takeCard(0, d, false);
   }
@@ -334,8 +338,10 @@ class BaqueGame {
     this.turns[i]++;
     if (i === 0) { this.drawn = c.id; this.sel = new Set(); }
     this.phase = 'play'; this.render();
-    if (fromDeck) flyCards([c], fromDeck, rectOf(i === 0 ? this.c.hand : this.seats[i]),
-      { cls: 'tiny', step: 0, back: i !== 0 });
+    if (fromDeck) {
+      if (i === 0) await flyIntoHand(c, fromDeck, this.c.hand, 42);
+      else flyCards([c], fromDeck, rectOf(this.seats[i]), { cls: 'tiny', step: 0, back: true });
+    }
     await this.afterGet(i, { zimo: true, dihu: this.turns[i] === 1, haidi: lastCard });
   }
   /* 从可捡区拿一张（不算自摸） */
@@ -346,19 +352,20 @@ class BaqueGame {
     this.turns[i]++;
     if (i === 0) { this.drawn = d.c.id; this.sel = new Set(); }
     this.phase = 'play'; this.render();
-    flyCards([d.c], from, rectOf(i === 0 ? this.c.hand : this.seats[i]), { cls: 'tiny', step: 0 });
+    if (i === 0) await flyIntoHand(d.c, from, this.c.hand, 42);
+    else flyCards([d.c], from, rectOf(this.seats[i]), { cls: 'tiny', step: 0 });
     if (!silent && i !== 0) say(this.seats[i], '捡牌！');
     await this.afterGet(i, { zimo: false, dihu: false, haidi: false });
   }
   /* 拿到牌之后：能胡就胡，否则打一张 */
   async afterGet(i, ev) {
+    this.curEv = ev;
     const hu = bqHu(this.hands[i]);
-    if (i === 0 && !this.auto[0]) return this.myTurn(hu, ev);
+    if (i === 0) return this.myTurn(hu, ev);
     await sleep(420 + rnd(240));
     if (this.c.over) return;
     if (hu) { await this.doHu(i, hu, ev, null); return this.next(); }
-    this.discardCard(i, this.bestDiscard(i).card);
-    await this.afterDiscard(i);
+    await this.playOut(i, this.bestDiscard(i).card);
   }
   /* 人机决定要不要捡牌：能直接胡就捡，能明显改善听牌也捡 */
   aiPick(i) {
@@ -393,7 +400,7 @@ class BaqueGame {
     actBtn('打出', '', async () => {
       if (!this.sel.size) return toast('请先选一张要打出的牌');
       const card = this.hands[0].find(x => this.sel.has(x.id));
-      a.innerHTML = ''; this.discardCard(0, card); await this.afterDiscard(0);
+      a.innerHTML = ''; await this.playOut(0, card);
     });
   }
   /* 听牌提示：点开看能胡哪些牌、各几番 */
@@ -437,33 +444,48 @@ class BaqueGame {
       const rest = hand.filter(x => x.id !== c.id);
       const w = bqWaits(rest, this.seen);
       const cnt = w.waits.reduce((s, x) => s + x.left, 0);
-      const score = cnt * 100 + w.bestMult * 6 - bqDeadScore(rest) + (isWild(c) ? -100000 : 0) + rnd(5);
+      const score = cnt * 100 + w.bestMult * 6 - bqDeadScore(rest) + (c.k === 1 ? -100000 : c.k === 2 ? 40 : 0) + rnd(5);
       if (!best || score > best.score) best = { card: c, score: score };
     }
     return best;
   }
-  discardCard(i, card) {
+  /* 打出一张牌 */
+  async playOut(i, card) {
     const from = rectOf(i === 0 ? this.c.hand : this.seats[i]);
     this.hands[i] = this.hands[i].filter(x => x.id !== card.id);
     this.markSeen(card);
+    if (i === 0) { this.sel = new Set(); this.drawn = null; }
+    if (card.k === 2) {
+      /* 机会牌：直接进废牌堆，别人不能要；打出后从牌堆最近 4 张选 1 张，
+         不影响本次摸牌，选完手牌回到 8 张，还要再打一张 */
+      this.discard.push({ c: card, by: i, dead: true });
+      this.dead++;
+      this.phase = 'play'; this.render();
+      flyCards([card], from, rectOf(this.center), { cls: 'tiny', step: 0, fade: true });
+      if (i === 0) toast('打出机会牌', 900); else say(this.seats[i], '机会牌！');
+      await sleep(500);
+      if (this.c.over) return;
+      if (this.wall.length) await this.chancePick(i);
+      if (this.c.over) return;
+      return this.afterGet(i, this.curEv);           // 继续这一巡，再打一张
+    }
     const rec = { c: card, by: i };
     this.discard.push(rec);
     this.pool.push(rec);
     while (this.pool.length > 4) { this.pool.shift(); this.dead++; }   // 只保留最近 4 张可捡
-    if (i === 0) { this.sel = new Set(); this.drawn = null; }
-    this.render();
+    this.phase = 'play'; this.render();
     flyCards([card], from, rectOf(this.slots[i]), { cls: 'tiny', step: 0 });
+    await this.afterDiscard(i);
   }
   /* 打出后：机会牌四选一 → 其他家接炮 */
   async afterDiscard(i) {
     const card = this.discard[this.discard.length - 1].c;
-    if (card.k === 2 && this.wall.length) await this.chancePick(i);
     if (this.c.over) return;
     for (let k = 1; k < 4; k++) {
       const j = (i + k) % 4;
       const hu = bqHu(this.hands[j].concat([card]));
       if (!hu) continue;
-      if (j === 0 && !this.auto[0]) { if (!(await this.askHu(hu))) continue; }
+      if (j === 0) { if (!(await this.askHu(hu))) continue; }
       this.hands[j] = this.hands[j].concat([card]);
       const rec = this.discard.pop();
       this.pool = this.pool.filter(x => x !== rec);
@@ -476,7 +498,7 @@ class BaqueGame {
   async chancePick(i) {
     const opts = this.wall.slice(0, Math.min(4, this.wall.length));
     let choice;
-    if (i === 0 && !this.auto[0]) {
+    if (i === 0 && !this.headless) {
       choice = await new Promise(res => {
         const a = this.c.act; a.innerHTML = '';
         const tip = document.createElement('span'); tip.className = 'pill'; tip.textContent = '机会牌：4 选 1';
@@ -497,10 +519,12 @@ class BaqueGame {
       choice = best.c;
       say(this.seats[i], '机会牌！');
     }
+    const from = this.deckEl ? rectOf(this.deckEl) : rectOf(this.center);
     this.wall = this.wall.filter(x => x !== choice);
     this.hands[i].push(choice); this.hands[i].sort(bqSort);
-    if (i === 0) toast('机会牌换到 ' + (choice.k ? (choice.k === 1 ? '癞子' : '机会牌') : RANK_CH[choice.r] + SUIT_CH[choice.s]), 1100);
     this.render();
+    if (i === 0) { await flyIntoHand(choice, from, this.c.hand, 42); toast('机会牌换到 ' + (choice.k ? (choice.k === 1 ? '癞子' : '机会牌') : RANK_CH[choice.r] + SUIT_CH[choice.s]), 1100); }
+    else flyCards([choice], from, rectOf(this.seats[i]), { cls: 'tiny', step: 0, back: true });
   }
   askHu(hu) {
     return new Promise(res => {
@@ -528,7 +552,7 @@ class BaqueGame {
     const times = hu.hard ? 2 : 1;
     const tags = [hu.name + ' ' + hu.mult + '番'];
     if (ev.dihu) tags.push('地胡×16'); else if (ev.haidi) tags.push('海底捞月×4');
-    if (ev.zimo) tags.push('自摸×3');
+    tags.push(ev.zimo ? '自摸×3' : '接炮');
     if (hu.hard) tags.push('硬气·结算两次');
 
     const rd = [0, 0, 0, 0];
@@ -543,29 +567,60 @@ class BaqueGame {
     for (let j = 0; j < 4; j++) this.delta[j] += rd[j];
     this.hus[i]++;
     if (i === 0) bigWin('胡！' + hu.name); else say(this.seats[i], '胡！' + hu.name);
-    toast(this.P[i].name + '　' + tags.join(' · '), 1700);
     beanFlow(this.anchors, rd);
-    this.auto[i] = true;                            // 第一次胡牌后系统自动接管
-    this.hands[i].forEach(c => this.markSeen(c));
-    this.hands[i] = [];
+    for (let j = 0; j < 4; j++) floatBean(this.anchors[j], rd[j]);
     this.render();
-    await sleep(1700);
+    await sleep(1400);
     if (this.c.over) return;
-    if (this.wall.length >= 7) this.hands[i] = this.wall.splice(0, 7).sort(bqSort);
+    this.roundEnd(i, hu, tags.join(' · '), mult * times, rd);
+  }
+  /* 本轮结束：亮出所有人的手牌，点「下一轮」继续 */
+  roundEnd(winner, hu, tagText, mult, rd) {
+    this.phase = 'over';
+    this.c.act.innerHTML = '';
     this.render();
+    /* 亮牌：每家的手牌摊在自己的出牌区 */
+    for (let i = 0; i < 4; i++) {
+      const sl = this.slots[i]; sl.innerHTML = '';
+      sl.style.flexDirection = 'column'; sl.style.gap = '2px';
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:1px;justify-content:center';
+      this.hands[i].forEach(c => row.appendChild(cardEl(c, 'tiny')));
+      sl.appendChild(row);
+      const tg = document.createElement('div');
+      tg.className = 'reveal-tag' + (i === winner ? ' first' : '');
+      tg.innerHTML = (i === winner ? '<b class="gold-txt">胡</b>' : '<span style="opacity:.8">未胡</span>')
+        + (rd[i] ? '<b class="amt" style="color:' + (rd[i] > 0 ? '#7dffae' : '#ff8272') + '">'
+          + (rd[i] > 0 ? '+' : '') + fmt(rd[i]) + '</b>' : '');
+      sl.appendChild(tg);
+    }
+    this.center.innerHTML = '';
+    const box = document.createElement('div');
+    box.style.cssText = 'font-size:12px;background:rgba(0,0,0,.6);border-radius:10px;padding:5px 14px;'
+      + 'border:1px solid rgba(255,215,106,.6);text-align:center;white-space:nowrap';
+    box.innerHTML = winner < 0
+      ? '<span class="gold-txt" style="font-size:14px">流局</span><div style="font-size:11px;margin-top:2px">牌堆摸完，无人胡牌</div>'
+      : '<span class="gold-txt" style="font-size:14px">' + (winner === 0 ? '我' : this.P[winner].name) + ' 胡牌</span>'
+      + '<div style="font-size:11px;margin-top:2px">' + tagText + '　总倍数 <b class="gold-txt">×' + mult + '</b></div>';
+    this.center.appendChild(box);
+    actBtn('下一轮', '', () => { this.roundNo++; this.resetSlots(); this.newDeal(); });
+    actBtn('结束牌局', 'grey', () => this.finish());
+  }
+  resetSlots() {
+    for (let i = 0; i < 4; i++) { this.slots[i].innerHTML = ''; this.slots[i].style.flexDirection = ''; }
   }
   next() {
     if (this.c.over) return;
+    if (this.phase === 'over') return;
     this.phase = '';
-    if (!this.wall.length) return this.finish();
+    if (!this.wall.length) return this.roundEnd(-1, null, '', 1, [0, 0, 0, 0]);
     this.turn = (this.turn + 1) % 4;
-    if (!this.hands[this.turn].length && this.wall.length < 7) return this.finish();
     setTimeout(() => this.step(), 340);
   }
   finish() {
     if (this.c.over) return;
     settle(this.P.map((p, i) => ({ p: p, delta: this.delta[i], tag: this.hus[i] ? '胡' + this.hus[i] + '次' : '未胡' })),
-      '牌局结束 · 百变八雀牌');
+      '牌局结束 · 百变八雀牌', '共 ' + this.roundNo + ' 轮');
   }
 }
 
@@ -576,9 +631,9 @@ GAMES.baque = {
     + '<h4>玩法说明</h4><ul>'
     + '<li>使用 <b>84 张</b>扑克：两副去掉大小王和 2/3/4/5（6~A），新增 <b>4 张 8</b>（全场 12 张 8）、'
     + '<b>4 张癞子</b>、<b>4 张机会牌</b>。</li>'
-    + '<li>4 人同桌，开局每人 7 张，通过摸打把手中 <b>8 张牌</b>组成特定牌型即可胡牌。</li>'
-    + '<li><b>第一次胡牌后不能再进行手牌操作</b>，系统会自动进行胡牌操作，直至牌堆全部摸完，游戏结束。</li>'
-    + '<li><b>机会牌</b>：打出后可以从牌堆最近 4 张牌里选 1 张放入手牌。</li>'
+    + '<li>4 人同桌，开局每人 7 张。每巡可以<b>点牌堆摸一张</b>，也可以<b>从底池（最近 4 张弃牌）里拿一张</b>；凑成 <b>8 张</b>特定牌型即可胡牌。</li>'
+    + '<li>本作按<b>一轮一胡</b>结算：有人胡牌（或牌堆摸完流局）本轮即结束，亮出所有人的手牌，点「下一轮」继续；随时可「结束牌局」看总账。</li>'
+    + '<li><b>机会牌</b>：打出后可以从牌堆最近 4 张牌里选 1 张放入手牌；机会牌直接进废牌堆，别人拿不走，且不影响本次摸牌，选完还要再打一张。</li>'
     + '<li><b>癞子</b>可当任意牌；但手中有癞子时<b>不能胡 3+3+2 平胡</b>。</li></ul>'
     + '<h4>基础牌组</h4><ul>'
     + '<li><b>同花三/四/五/六/八顺</b>：3 4 5 6 8 张相同花色的牌按顺序排列。</li>'

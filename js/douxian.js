@@ -146,6 +146,7 @@ class DouxianGame {
   }
   realmEl(pi, zi, mini, reveal) {
     const cards = this.field[pi][zi], size = DX_ZONES[zi].size;
+    const locked = pi === 0 ? (this.keep0 ? this.keep0[zi] : 0) : 0;   // 上回合飞升上来的张数
     const d = document.createElement('div');
     d.className = 'realm' + (!mini && zi === this.activeZone && this.phase === 'place' ? ' act' : '');
     const nm = document.createElement('div'); nm.className = 'rn'; nm.textContent = DX_ZONES[zi].n;
@@ -153,12 +154,19 @@ class DouxianGame {
     const rs = document.createElement('div'); rs.className = 'rs';
     for (let i = 0; i < size; i++) {
       if (cards[i]) {
-        if (reveal === false) { const bk = backEl(''); bk.style.width = mini ? '17px' : '21px'; bk.style.height = mini ? '24px' : '30px'; rs.appendChild(bk); }
-        else {
+        if (reveal === false) {
+          const bk = backEl(''); bk.style.width = mini ? '17px' : '21px'; bk.style.height = mini ? '24px' : '30px';
+          rs.appendChild(bk);
+        } else {
           const e = cardEl(cards[i], mini ? 'xs' : 'tiny');
           if (!mini && this.phase === 'place') {
-            e.style.cursor = 'pointer';
-            e.onclick = ev => { ev.stopPropagation(); this.pullBack(zi, cards[i]); };
+            if (i < locked) {
+              e.classList.add('locked');                 // 继承牌：锁定，不能动
+              e.onclick = ev => { ev.stopPropagation(); toast('这张是上回合飞升上来的，不能移动', 1100); };
+            } else {
+              e.style.cursor = 'pointer';
+              e.onclick = ev => { ev.stopPropagation(); this.pullBack(zi, i); };
+            }
           }
           rs.appendChild(e);
         }
@@ -171,22 +179,47 @@ class DouxianGame {
     }
     return d;
   }
-  /* 点区域：自动放入该区域当前能做到的最大组合 */
+  /* 点区域：只做「选中建议的牌」，不直接放进去，等玩家确认 */
   pickZone(z) {
+    if (this.round === 1 && z === 2) return;
     this.activeZone = z;
+    this.suggestZone(z);
+  }
+  /* 从手牌里选出该区域当前能做到的最大组合（只是选中，不放入） */
+  suggestZone(z) {
     const need = DX_ZONES[z].size - this.field[0][z].length;
+    this.sel = new Set();
     if (need > 0 && this.hands[0].length >= need) {
       const pick = dxBestFill(this.hands[0], this.field[0][z], z, need, this.round);
-      pick.forEach(c => { this.field[0][z].push(c); this.hands[0] = this.hands[0].filter(x => x.id !== c.id); });
-      const p = dxPower(this.field[0][z], z, this.round);
-      toast(DX_ZONES[z].n + '界最大：' + p.n + ' ' + p.p, 1100);
+      pick.forEach(c => this.sel.add(c.id));
     }
     this.render(); this.tipPlace();
   }
-  /* 把区域里的牌收回手牌（换牌） */
-  pullBack(z, card) {
-    if (this.field[0][z].length <= this.keep0[z]) return toast('这张是上回合飞升上来的，不能收回');
-    this.field[0][z] = this.field[0][z].filter(x => x.id !== card.id);
+  /* 把选中的牌放进当前区域 */
+  confirmPlace() {
+    const z = this.activeZone;
+    if (z < 0) return toast('先点一个区域');
+    const need = DX_ZONES[z].size - this.field[0][z].length;
+    if (need <= 0) return toast(DX_ZONES[z].n + '界已经满了');
+    if (this.sel.size !== need) return toast('还需要选 ' + (need - this.sel.size) + ' 张');
+    const cs = this.hands[0].filter(c => this.sel.has(c.id));
+    const from = rectOf(this.c.hand), to = rectOf(this.slots[0]);
+    cs.forEach(c => { this.field[0][z].push(c); this.hands[0] = this.hands[0].filter(x => x.id !== c.id); });
+    this.sel = new Set();
+    flyCards(cs, from, to, { cls: 'tiny', step: 10 });
+    const p = dxPower(this.field[0][z], z, this.round);
+    if (this.field[0][z].length === DX_ZONES[z].size) toast(DX_ZONES[z].n + '界：' + p.n + ' ' + p.p, 1100);
+    /* 自动切到下一个还没填满的区域并给出建议 */
+    const zs = this.round === 1 ? [0, 1] : [0, 1, 2];
+    const nx = zs.find(t => this.field[0][t].length < DX_ZONES[t].size);
+    if (nx !== undefined) { this.activeZone = nx; this.suggestZone(nx); }
+    else { this.render(); this.tipPlace(); }
+  }
+  /* 把本回合放进去的牌收回手牌（继承牌不可动） */
+  pullBack(z, idx) {
+    if (idx < (this.keep0 ? this.keep0[z] : 0)) return toast('这张是上回合飞升上来的，不能移动', 1100);
+    const card = this.field[0][z][idx];
+    this.field[0][z].splice(idx, 1);
     this.hands[0].push(card); this.hands[0].sort((a, b) => b.r - a.r);
     this.activeZone = z;
     this.render(); this.tipPlace();
@@ -232,12 +265,14 @@ class DouxianGame {
   tapCard(c) {
     if (this.c.over) return;
     if (this.phase === 'place') {
-      const z = this.activeZone, need = DX_ZONES[z].size - this.field[0][z].length;
-      if (need <= 0) return toast('该区域已满，先点其他区域');
-      this.hands[0] = this.hands[0].filter(x => x.id !== c.id);
-      this.field[0][z].push(c);
-      if (DX_ZONES[z].size - this.field[0][z].length === 0) {
-        for (let k = 0; k < 3; k++) { const t = (z + k + 1) % 3; if (this.round === 1 && t === 2) continue; if (this.field[0][t].length < DX_ZONES[t].size) { this.activeZone = t; break; } }
+      const z = this.activeZone;
+      if (z < 0) return toast('先点一个区域');
+      const need = DX_ZONES[z].size - this.field[0][z].length;
+      if (need <= 0) return toast(DX_ZONES[z].n + '界已经满了，先点其他区域');
+      if (this.sel.has(c.id)) this.sel.delete(c.id);
+      else {
+        if (this.sel.size >= need) return toast(DX_ZONES[z].n + '界只需 ' + need + ' 张，先点掉一张再换');
+        this.sel.add(c.id);
       }
       this.render(); return this.tipPlace();
     }
@@ -252,16 +287,23 @@ class DouxianGame {
     if (this.c.over) return;
     if (this.round > 4) return this.finish();
     this.phase = 'place'; this.sel = new Set();
-    this.keep0 = [0, 1, 2].map(z => this.field[0][z].length);
+    this.keep0 = [0, 1, 2].map(z => this.field[0][z].length);   // 继承牌张数（锁定）
     this.placeTotal = this.needCounts(0).reduce((a, b) => a + b, 0);
-    this.activeZone = this.needCounts(0).findIndex(x => x > 0);
     for (let i = 1; i < 4; i++) this.aiPlace(i);
-    this.autoPlace(true);                       // 进来就按各区最大自动布好，玩家可再替换
+    const zs = this.round === 1 ? [0, 1] : [0, 1, 2];
+    this.activeZone = zs.find(z => this.field[0][z].length < DX_ZONES[z].size);
+    if (this.activeZone === undefined) this.activeZone = zs[0];
+    this.suggestZone(this.activeZone);                          // 只选中建议牌，等玩家确认
     const a = this.c.act; a.innerHTML = '';
-    actBtn('自动布阵', 'grey', () => this.autoPlace());
+    actBtn('建议', 'grey', () => this.suggestZone(this.activeZone));
+    actBtn('确认放入', 'blue', () => this.confirmPlace());
     actBtn('全部收回', 'grey', () => {
-      for (let z = 0; z < 3; z++) { while (this.field[0][z].length > this.keep0[z]) this.hands[0].push(this.field[0][z].pop()); }
-      this.hands[0].sort((x, y) => y.r - x.r); this.render(); this.tipPlace();
+      for (let z = 0; z < 3; z++)
+        while (this.field[0][z].length > this.keep0[z]) this.hands[0].push(this.field[0][z].pop());
+      this.hands[0].sort((x, y) => y.r - x.r);
+      const zz = (this.round === 1 ? [0, 1] : [0, 1, 2]).find(z => this.field[0][z].length < DX_ZONES[z].size);
+      this.activeZone = zz === undefined ? 0 : zz;
+      this.suggestZone(this.activeZone);
     });
     actBtn('确认布阵', '', () => {
       if (this.needCounts(0).some(x => x > 0)) return toast('还有区域没放满');
@@ -272,14 +314,34 @@ class DouxianGame {
     const need = this.needCounts(0).reduce((a, b) => a + b, 0);
     const totalNeed = this.placeTotal || need;
     const zs = (this.round === 1 ? [0, 1] : [0, 1, 2]).map(z => {
-      if (this.field[0][z].length < DX_ZONES[z].size) return DX_ZONES[z].n + ' <span style="color:#ffd7a8">缺</span>';
-      const p = dxPower(this.field[0][z], z, this.round);
-      return DX_ZONES[z].n + ' <b class="gold-txt">' + p.n + ' ' + p.p + '</b>';
+      const full = this.field[0][z].length >= DX_ZONES[z].size;
+      const act = z === this.activeZone;
+      if (full) {
+        const p = dxPower(this.field[0][z], z, this.round);
+        return '<span style="' + (act ? 'text-decoration:underline' : '') + '">' + DX_ZONES[z].n
+          + ' <b class="gold-txt">' + p.n + ' ' + p.p + '</b></span>';
+      }
+      return '<span style="' + (act ? 'text-decoration:underline' : '') + '">' + DX_ZONES[z].n
+        + ' <span style="color:#ffd7a8">缺 ' + (DX_ZONES[z].size - this.field[0][z].length) + '</span></span>';
     }).join('　');
+    /* 当前区域 + 已选牌的预览 */
+    let preview = '点一个区域，会自动帮你选好该区最大的牌，确认后才放入';
+    const z = this.activeZone;
+    if (z >= 0 && this.field[0][z].length < DX_ZONES[z].size) {
+      const need2 = DX_ZONES[z].size - this.field[0][z].length;
+      const picked = this.hands[0].filter(c => this.sel.has(c.id));
+      if (picked.length === need2) {
+        const p = dxPower(this.field[0][z].concat(picked), z, this.round);
+        preview = '<b class="gold-txt">' + DX_ZONES[z].n + '界　' + p.n + ' ' + p.p + '</b>'
+          + '　<span style="opacity:.85">点「确认放入」放上去，也可点手牌自行替换</span>';
+      } else {
+        preview = DX_ZONES[z].n + '界还需选 <b class="gold-txt">' + (need2 - picked.length) + '</b> 张';
+      }
+    } else if (need === 0) preview = '三个区域都放满了，点「确认布阵」开始斗法';
     this.tip.innerHTML = '<div class="gold-txt" style="font-size:13px;letter-spacing:2px">第 ' + this.round + ' 回合 · 布阵'
       + '<span style="font-size:11px;letter-spacing:0"> （已放入 ' + (totalNeed - need) + '/' + totalNeed + '）</span></div>'
       + '<div style="font-size:11px;margin-top:1px">' + zs + '</div>'
-      + '<div class="zone-line">点区域自动放该区最大牌 · 点区域里的牌可收回替换</div>';
+      + '<div class="zone-line">' + preview + '</div>';
   }
   autoPlace(silent) {
     for (let z = 0; z < 3; z++) while (this.field[0][z].length > this.keep0[z]) this.hands[0].push(this.field[0][z].pop());
