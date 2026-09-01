@@ -152,13 +152,17 @@ class DouxianGame {
     const nm = document.createElement('div'); nm.className = 'rn'; nm.textContent = DX_ZONES[zi].n;
     d.appendChild(nm);
     const rs = document.createElement('div'); rs.className = 'rs';
+    /* 斗法（结算）阶段把牌放大 */
+    const big = this.phase === 'show';
+    const cw = mini ? (big ? 28 : 21) : (big ? 42 : 30);
     for (let i = 0; i < size; i++) {
       if (cards[i]) {
         if (reveal === false) {
-          const bk = backEl(''); bk.style.width = mini ? '17px' : '21px'; bk.style.height = mini ? '24px' : '30px';
+          const bk = backEl(''); bk.style.width = cw + 'px'; bk.style.height = Math.round(cw * 1.44) + 'px';
           rs.appendChild(bk);
         } else {
-          const e = cardEl(cards[i], mini ? 'xs' : 'tiny');
+          const e = cardEl(cards[i], '');
+          e.style.setProperty('--cw', cw + 'px');
           if (!mini && this.phase === 'place') {
             if (i < locked) {
               e.classList.add('locked');                 // 继承牌：锁定，不能动
@@ -170,7 +174,11 @@ class DouxianGame {
           }
           rs.appendChild(e);
         }
-      } else rs.appendChild(slotEl(true));
+      } else {
+        const sl2 = slotEl(true);
+        sl2.style.width = cw + 'px'; sl2.style.height = Math.round(cw * 1.44) + 'px';
+        rs.appendChild(sl2);
+      }
     }
     d.appendChild(rs);
     if (!mini) {
@@ -227,7 +235,7 @@ class DouxianGame {
   render(revealAll) {
     for (let i = 1; i < 4; i++) {
       const box = this.slots[i]; box.innerHTML = '';
-      const mr = document.createElement('div'); mr.className = 'mini-realms';
+      const mr = document.createElement('div'); mr.className = 'mini-realms' + (i === 3 ? ' lft' : '');
       for (let z = 0; z < 3; z++) {
         if (this.round === 1 && z === 2) continue;
         mr.appendChild(this.realmEl(i, z, true, revealAll ? true : false));
@@ -386,6 +394,7 @@ class DouxianGame {
   beanAnchor(i) { return this.anchors[i]; }
   async resolve() {
     this.phase = 'show';
+    $('#table').classList.add('reveal');
     this.render(true);
     const zones = this.round === 1 ? [0, 1] : [0, 1, 2];
     const pw = [0, 1, 2, 3].map(i => zones.map(z => dxPower(this.field[i][z], z, this.round)));
@@ -464,6 +473,7 @@ class DouxianGame {
     if (this.reset[0]) bigWin(winCnt[0] >= 2 ? '得证大道' : '隐忍渡劫');
     else if (this.reset.some(Boolean)) toast('有玩家触发了' + (winCnt.some(c => c >= 2) ? '得证大道' : '隐忍渡劫'), 1200);
     this.round++;
+    $('#table').classList.remove('reveal');
     if (this.round > 4) return setTimeout(() => this.finish(), 900);
     setTimeout(() => this.ascend(), this.reset.some(Boolean) ? 1400 : 600);
   }
@@ -516,6 +526,7 @@ class DouxianGame {
   }
   finish() {
     if (this.c.over) return;
+    $('#table').classList.remove('reveal');
     const rows = this.P.map((p, i) => ({ p: p, delta: this.delta[i], tag: '' }));
     settle(rows, '四回合结束 · 斗仙牌');
   }

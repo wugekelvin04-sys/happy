@@ -217,8 +217,13 @@ body.land .match-wrap{gap:10px;padding:8px}
 .realm.act{border-color:var(--gold);background:rgba(255,215,106,.22);box-shadow:0 0 8px rgba(255,215,106,.5)}
 .realm .rn{font-size:10px;text-align:center;line-height:1.3;opacity:.95}
 .realm .rs{display:flex;gap:2px}
+/* 斗法阶段：牌放大 */
+#table.reveal .center-zone{width:352px}
+#table.reveal .realm .rn{font-size:11px}
+#table.reveal .realm .pw{font-size:12px;min-height:15px}
 .realm .pw{font-size:10px;text-align:center;color:var(--gold);font-weight:800;min-height:13px}
-.mini-realms{display:flex;gap:3px}
+.mini-realms{display:flex;gap:3px;flex-wrap:wrap;max-width:186px;justify-content:flex-end}
+.mini-realms.lft{justify-content:flex-start}
 .mini-realms .realm{padding:1px 2px 2px}
 .mini-realms .rn{font-size:9px;line-height:1.1}
 .mini-realms .rs{gap:1px}
