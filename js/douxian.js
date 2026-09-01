@@ -335,7 +335,7 @@ class DouxianGame {
       /* 名次 + 横幅 */
       const ord = [0, 1, 2, 3].slice().sort((a, b) => pw[b][zi].p - pw[a][zi].p);
       ord.forEach((pi, k) => this.banner(pi, pw[pi][zi].n, pw[pi][zi].p, k));
-      await sleep(1000);
+      await sleep(1400);
       if (this.c.over) return;
       /* 两两结算 */
       const rd = [0, 0, 0, 0];
@@ -351,11 +351,11 @@ class DouxianGame {
       for (let i = 0; i < 4; i++) {
         total[i] += rd[i];
         const el = i === 0 ? $('#tMyBeans') : this.seats[i].querySelector('.bn');
-        animNumber(el, this.P[i].beans + this.delta[i] + before[i], this.P[i].beans + this.delta[i] + total[i], 700);
+        animNumber(el, this.P[i].beans + this.delta[i] + before[i], this.P[i].beans + this.delta[i] + total[i], 1000);
         floatBean(this.beanAnchor(i), rd[i]);
       }
       beanFlow(this.anchors, rd);
-      await sleep(1500);
+      await sleep(2100);
       if (this.c.over) return;
       this.clearBanners();
     }
@@ -385,11 +385,11 @@ class DouxianGame {
       for (let i = 0; i < 4; i++) {
         total[i] += sd[i];
         const el = i === 0 ? $('#tMyBeans') : this.seats[i].querySelector('.bn');
-        animNumber(el, this.P[i].beans + this.delta[i] + before[i], this.P[i].beans + this.delta[i] + total[i], 700);
+        animNumber(el, this.P[i].beans + this.delta[i] + before[i], this.P[i].beans + this.delta[i] + total[i], 1000);
         floatBean(this.beanAnchor(i), sd[i]);
       }
       beanFlow(this.anchors, sd);
-      await sleep(1600);
+      await sleep(2200);
       if (this.c.over) return;
     }
     for (let i = 0; i < 4; i++) this.delta[i] += total[i];

@@ -3,6 +3,10 @@
    ===================================================================== */
 'use strict';
 
+/* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
+const APP_VERSION = '1.6.0';
+const APP_BUILD = '2026-09-01';
+
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const rnd = n => Math.floor(Math.random() * n);
@@ -97,6 +101,49 @@ function bigWin(txt, ms) {
 function openModal(html) { $('#modal').innerHTML = html; $('#mask').classList.add('on'); $('#modal').scrollTop = 0; }
 function closeModal() { $('#mask').classList.remove('on'); }
 function show(id) { $$('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
+
+/* ---------------- 强制刷新 / 版本信息 ---------------- */
+async function hardReload() {
+  toast('正在清理缓存…', 1500);
+  try {
+    if (navigator.serviceWorker) {
+      const rs = await navigator.serviceWorker.getRegistrations();
+      for (const r of rs) await r.unregister();
+    }
+    if (window.caches) {
+      const ks = await caches.keys();
+      for (const k of ks) await caches.delete(k);
+    }
+  } catch (e) { }
+  // 只清离线缓存，不动 localStorage（欢乐豆和昵称都保留）
+  location.replace(location.origin + location.pathname + '?v=' + Date.now());
+}
+async function openVersion() {
+  let sw = '未注册', cache = '无';
+  try {
+    if (navigator.serviceWorker) {
+      const rs = await navigator.serviceWorker.getRegistrations();
+      sw = rs.length ? (navigator.serviceWorker.controller ? '已生效（可离线玩）' : '已注册，刷新后生效') : '未注册';
+    }
+    if (window.caches) { const ks = await caches.keys(); if (ks.length) cache = ks.join('、'); }
+  } catch (e) { sw = '不可用（需 https 或 localhost）'; }
+  const td = 'style="text-align:left;color:#e2f2e8;font-weight:400"';
+  openModal('<h2>版本信息</h2>'
+    + '<table class="rt"><tr><th>项目</th><th>内容</th></tr>'
+    + '<tr><td>版本号</td><td ' + td + '>v' + APP_VERSION + '</td></tr>'
+    + '<tr><td>构建日期</td><td ' + td + '>' + APP_BUILD + '</td></tr>'
+    + '<tr><td>离线缓存</td><td ' + td + '>' + cache + '</td></tr>'
+    + '<tr><td>Service Worker</td><td ' + td + '>' + sw + '</td></tr>'
+    + '<tr><td>存档键</td><td ' + td + '>' + SAVE_KEY + '</td></tr>'
+    + '</table>'
+    + '<h4>拿不到新版本？</h4>'
+    + '<p>页面会被离线缓存，改动后手机上可能还是旧版。点 <b class="gold-txt">强制刷新</b> 会清掉离线缓存重新下载，'
+    + '<b>欢乐豆和昵称不会丢</b>。</p>'
+    + '<div class="foot"><button class="btn sm red" data-hr>强制刷新</button>'
+    + '<button class="btn sm grey" data-close>关闭</button></div>');
+  $('#modal [data-hr]').onclick = () => { closeModal(); hardReload(); };
+  $('#modal [data-close]').onclick = closeModal;
+}
 
 /* ---------------- 商城 ---------------- */
 const SHOP = [
@@ -305,13 +352,13 @@ function flyCards(cards, fromRect, toRect, opts) {
       layer.appendChild(e);
       const dx = toRect.left - fromRect.left + i * step, dy = toRect.top - fromRect.top;
       requestAnimationFrame(() => {
-        e.style.transitionDelay = (i * 45) + 'ms';
+        e.style.transitionDelay = (i * 70) + 'ms';
         e.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + (opts.scale || 1) + ')';
         if (opts.fade) e.style.opacity = '0';
       });
-      setTimeout(() => e.remove(), 460 + i * 45);
+      setTimeout(() => e.remove(), 620 + i * 70);
     });
-    setTimeout(res, 400 + cards.length * 45);
+    setTimeout(res, 560 + cards.length * 70);
   });
 }
 /* 欢乐豆从输家飞到赢家 */
@@ -329,16 +376,16 @@ function flyBeans(fromEl, toEl, amount) {
     layer.appendChild(d);
     const jx = (Math.random() - .5) * 46, jy = (Math.random() - .5) * 34;
     requestAnimationFrame(() => {
-      d.style.transition = 'transform .6s cubic-bezier(.3,.75,.35,1), opacity .6s';
-      d.style.transitionDelay = (i * 40) + 'ms';
+      d.style.transition = 'transform .85s cubic-bezier(.3,.75,.35,1), opacity .85s';
+      d.style.transitionDelay = (i * 60) + 'ms';
       d.style.opacity = '1';
       d.style.transform = 'translate(' + (dx + jx * .18) + 'px,' + (dy + jy * .18) + 'px) scale(.65)';
     });
-    setTimeout(() => { d.style.opacity = '0'; }, 520 + i * 40);
-    setTimeout(() => d.remove(), 780 + i * 40);
+    setTimeout(() => { d.style.opacity = '0'; }, 740 + i * 60);
+    setTimeout(() => d.remove(), 1080 + i * 60);
   }
   toEl.classList.add('win-glow');
-  setTimeout(() => toEl.classList.remove('win-glow'), 950);
+  setTimeout(() => toEl.classList.remove('win-glow'), 1300);
 }
 /* 按每家的净输赢，成对播放飞豆（输家 → 赢家） */
 function beanFlow(anchors, deltas) {
@@ -363,7 +410,7 @@ function capPay(amount, loserBeans, cap) {
 /* 数字滚动 + 飘豆动画（斗仙牌结算用） */
 function animNumber(el, from, to, ms) {
   if (!el) return;
-  ms = ms || 700; const t0 = performance.now();
+  ms = ms || 1000; const t0 = performance.now();
   (function tick(now) {
     const k = Math.min(1, (now - t0) / ms);
     el.textContent = fmt(from + (to - from) * (1 - Math.pow(1 - k, 3)));
@@ -379,7 +426,7 @@ function floatBean(anchor, delta) {
   d.innerHTML = '<span class="bean"><i></i></span>' + (delta > 0 ? '+' : '') + fmt(delta);
   d.style.top = '0px';
   host.appendChild(d);
-  setTimeout(() => d.remove(), 1500);
+  setTimeout(() => d.remove(), 2300);
 }
 /* 通用按钮生成 */
 function actBtn(txt, cls, fn) {
@@ -391,8 +438,16 @@ function actBtn(txt, cls, fn) {
 /* =====================================================================
    启动
    ===================================================================== */
+/* 横屏时大厅用三栏布局 */
+function fitLayout() {
+  document.body.classList.toggle('land', window.innerWidth >= window.innerHeight);
+  [...document.querySelectorAll('.hand')].forEach(h => { });
+}
 function bootstrap() {
   S = loadSave();
+  fitLayout();
+  window.addEventListener('resize', fitLayout);
+  window.addEventListener('orientationchange', () => setTimeout(fitLayout, 200));
   $$('.gcard').forEach(el => el.onclick = () => gotoMatch(el.dataset.game));
   $('#btnShop').onclick = openShop;
   $('#btnMe').onclick = openMe;
@@ -417,6 +472,9 @@ function bootstrap() {
       + '<p style="margin-top:12px;font-size:11px;color:#9fc9b1">本作为离线单机娱乐版本，欢乐豆与充值均为模拟数据，不涉及任何真实货币或账号。</p>');
     $$('#modal [data-g]').forEach(b => b.onclick = () => showRules(b.dataset.g));
   };
+  $('#btnHardReload').onclick = hardReload;
+  $('#verTag').onclick = openVersion;
+  $('#verTag').textContent = 'v' + APP_VERSION;
   $('#btnReset').onclick = () => {
     openModal('<h2>重置数据</h2><p>将清空昵称、欢乐豆与战绩，恢复初始 1,000,000 豆。确定？</p>'
       + '<div class="foot"><button class="btn red sm" data-y>确定重置</button><button class="btn grey sm" data-n>取消</button></div>');

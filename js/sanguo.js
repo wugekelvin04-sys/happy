@@ -281,19 +281,71 @@ class SanguoGame {
     if (bi0 >= 0) { this.reco = per0; this.camp = bi0; this.sel = new Set(per0[bi0].own.map(c => c.id)); }
     this.render();
   }
+  /* 把某家的出牌放到他的出牌区，附名次徽章 + 牌型（+ 输赢豆） */
+  renderSlot(i, play, rank, delta) {
+    const sl = this.slots[i]; sl.innerHTML = '';
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:0';
+    play.ev.cs.slice().sort((x, y) => y.r - x.r).forEach((c, k) => {
+      const e = cardEl(c, 'xs'); if (k) e.style.marginLeft = '-8px'; row.appendChild(e);
+    });
+    sl.appendChild(row);
+    const tag = document.createElement('div');
+    tag.className = 'reveal-tag' + (rank === 1 ? ' first' : '');
+    tag.innerHTML = '<span class="rank-badge rank-big rk' + Math.min(4, rank) + '">' + rank + '</span>'
+      + '<span style="opacity:.85">' + SG_CAMPS[play.camp].n + '</span>'
+      + '<b class="gold-txt">' + play.ev.name + '</b>'
+      + (delta ? '<b class="amt" style="color:' + (delta > 0 ? '#7dffae' : '#ff8272') + '">'
+        + (delta > 0 ? '+' : '') + fmt(delta) + '</b>' : '');
+    sl.appendChild(tag);
+  }
+  /* 已开牌的玩家之间重新排名（并列同名次） */
+  rankOf(revealed, plays) {
+    const ord = revealed.slice().sort((a, b) => sgCmp(plays[b].ev, plays[a].ev));
+    const rk = {}; let cur = 1;
+    ord.forEach((p, k) => {
+      if (k > 0 && sgCmp(plays[p].ev, plays[ord[k - 1]].ev) !== 0) cur = k + 1;
+      rk[p] = cur;
+    });
+    return rk;
+  }
   async resolve() {
     this.busy = true;
     const plays = [];
     const mine = this.hands[0].filter(c => this.sel.has(c.id));
     plays[0] = { camp: this.camp, own: mine, ev: sgEval5(mine.concat(this.pubs[this.camp])) };
     for (let i = 1; i < 5; i++) plays[i] = sgBestPlay(this.hands[i], this.pubs);
-    const order = [0, 1, 2, 3, 4].slice().sort((a, b) => sgCmp(plays[b].ev, plays[a].ev));
-    /* 官方：出现多个第一名时，其余玩家的名次顺延（并列同名次） */
-    const rank = []; let cur = 1;
-    order.forEach((p, k) => {
-      if (k > 0 && sgCmp(plays[p].ev, plays[order[k - 1]].ev) !== 0) cur = k + 1;
-      rank[p] = cur;
-    });
+
+    for (let i = 0; i < 5; i++) this.slots[i].innerHTML = '';
+    this.mid.innerHTML = '';
+    const head = document.createElement('div');
+    head.style.cssText = 'font-size:12px;background:rgba(0,0,0,.5);border-radius:10px;padding:3px 12px;'
+      + 'border:1px solid rgba(255,215,106,.5);white-space:nowrap';
+    head.innerHTML = '<span class="gold-txt">第 ' + this.round + ' 轮开牌</span>';
+    this.mid.appendChild(head);
+
+    /* 从我开始，按座位顺时针一个一个开牌，每开一个就重排名次 */
+    const revealed = [];
+    for (let i = 0; i < 5; i++) {
+      if (this.c.over) return;
+      const from = i === 0 ? rectOf(this.c.hand) : rectOf(this.seats[i]);
+      const cs = plays[i].ev.cs.slice().sort((x, y) => y.r - x.r);
+      await flyCards(cs, from, rectOf(this.slots[i]), { cls: 'xs', step: 11 });
+      if (this.c.over) return;
+      revealed.push(i);
+      const rk = this.rankOf(revealed, plays);
+      revealed.forEach(j => this.renderSlot(j, plays[j], rk[j], 0));
+      const lead = revealed.filter(j => rk[j] === 1)[0];
+      head.innerHTML = '<span class="gold-txt">第 ' + this.round + ' 轮开牌 ' + revealed.length + '/5</span>'
+        + '　<span style="font-size:11px">暂列第一：' + (lead === 0 ? '我' : this.P[lead].name)
+        + ' <b class="gold-txt">' + plays[lead].ev.name + ' ×' + plays[lead].ev.mult + '</b></span>';
+      await sleep(i === 4 ? 500 : 800);
+    }
+    if (this.c.over) return;
+
+    /* 全部开完 → 结算 */
+    const rank = this.rankOf([0, 1, 2, 3, 4], plays);
+    const order = [0, 1, 2, 3, 4].slice().sort((a, b) => rank[a] - rank[b]);
     const win = order[0];
     const sameCamp = order.filter(i => rank[i] !== 1 && plays[i].camp === plays[win].camp).length;
     const sameType = order.filter(i => rank[i] !== 1 && plays[i].ev.t === plays[win].ev.t).length;
@@ -312,42 +364,19 @@ class SanguoGame {
       const share = Math.floor(pay / winners.length);
       winners.forEach((w, k) => rd[w] += (k === 0 ? pay - share * (winners.length - 1) : share));
     }
-    this.lastInfo = { winMult: winMult, critM: critM, killM: killM, sameCamp: sameCamp, sameType: sameType };
-    /* 出牌动画：各家的牌飞到自己的出牌区 */
-    const froms = [rectOf(this.c.hand), ...[1, 2, 3, 4].map(i => rectOf(this.seats[i]))];
-    await Promise.all([0, 1, 2, 3, 4].map(i =>
-      flyCards(plays[i].ev.cs.slice().sort((a, b) => b.r - a.r), froms[i], rectOf(this.slots[i]), { cls: 'xs', step: 11 })));
-    if (this.c.over) return;
-    for (let i = 0; i < 5; i++) {
-      const sl = this.slots[i]; sl.innerHTML = '';
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex;gap:0';
-      plays[i].ev.cs.slice().sort((a, b) => b.r - a.r).forEach((c, k) => {
-        const e = cardEl(c, 'xs'); if (k) e.style.marginLeft = '-8px'; row.appendChild(e);
-      });
-      sl.appendChild(row);
-      const tag = document.createElement('div');
-      tag.style.cssText = 'font-size:9.5px;white-space:nowrap;background:rgba(0,0,0,.55);border-radius:6px;padding:0 5px;'
-        + (i === win ? 'box-shadow:0 0 0 1px #ffd76a;' : '');
-      tag.innerHTML = '<b class="rank-badge rk' + Math.min(4, rank[i]) + '" style="width:13px;height:13px;font-size:9px">' + rank[i] + '</b> '
-        + '<span style="opacity:.85">' + SG_CAMPS[plays[i].camp].n + '</span> <b class="gold-txt">' + plays[i].ev.name + '</b>'
-        + (rd[i] ? ' <b style="color:' + (rd[i] > 0 ? '#7dffb0' : '#ff9a8f') + '">' + (rd[i] > 0 ? '+' : '') + fmt(rd[i]) + '</b>' : '');
-      sl.appendChild(tag);
-    }
-    /* 中央：冠军牌型与暴击/杀牌 */
-    this.mid.innerHTML = '';
-    const t = document.createElement('div');
-    t.style.cssText = 'font-size:12px;background:rgba(0,0,0,.5);border-radius:10px;padding:3px 12px;border:1px solid rgba(255,215,106,.5)';
-    t.innerHTML = '<span class="gold-txt">第 ' + this.round + ' 轮 · 冠军 ' + plays[win].ev.name + ' ×' + winMult + '</span>'
+    head.innerHTML = '<span class="gold-txt">冠军 ' + plays[win].ev.name + ' ×' + winMult + '</span>'
       + '<div style="font-size:10px;margin-top:1px;color:#ffb3a7">'
       + (sameCamp ? '同阵营 ' + sameCamp + ' 人 → 暴击×' + critM + '　' : '')
       + (sameType ? '同牌型 ' + sameType + ' 人 → 杀×' + killM : '')
       + (!sameCamp && !sameType ? '名次倍率 32/24/12/4' : '') + '</div>';
-    this.mid.appendChild(t);
+    for (let i = 0; i < 5; i++) this.renderSlot(i, plays[i], rank[i], rd[i]);
     await sleep(700);
     if (this.c.over) return;
     beanFlow(this.anchors, rd);
-    await sleep(500);
+    for (let i = 0; i < 5; i++) floatBean(this.anchors[i], rd[i]);
+    await sleep(900);
+    if (this.c.over) return;
+
     /* 打出的牌与公共牌进入弃牌堆，下回合与牌堆洗混 */
     for (let i = 0; i < 5; i++) {
       const own = plays[i].own;
@@ -358,7 +387,7 @@ class SanguoGame {
     for (let i = 0; i < 5; i++) this.delta[i] += rd[i];
     for (let i = 1; i < 5; i++) this.seats[i].querySelector('.bn').textContent = fmt(Math.max(0, this.P[i].beans + this.delta[i]));
     $('#tMyBeans').textContent = fmt(Math.max(0, this.P[0].beans + this.delta[0]));
-    await sleep(2100);
+    await sleep(1400);
     if (this.c.over) return;
     this.round++;
     this.startRound();

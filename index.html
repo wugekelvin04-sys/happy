@@ -80,7 +80,25 @@ body{
 .gcard .txt h3{font-size:18px;letter-spacing:2px;margin-bottom:3px}
 .gcard .txt p{font-size:11.5px;color:#e4eef7;opacity:.92;line-height:1.5}
 .gcard .tag{position:absolute;top:0;right:0;background:var(--red);font-size:10px;padding:2px 10px;border-radius:0 16px 0 12px;font-weight:700}
-.lobby-foot{display:flex;gap:10px;justify-content:center;padding:0 14px 10px}
+.lobby-foot{display:flex;gap:10px;justify-content:center;padding:0 14px 6px;flex-wrap:wrap}
+/* 横屏大厅：三张玩法卡横排铺满 */
+body.land .topbar{min-height:42px;padding:4px 12px}
+body.land .lobby-title{margin:0}
+body.land .lobby-title h1{font-size:23px;letter-spacing:5px}
+body.land .lobby-title p{font-size:10px;margin-top:0}
+body.land .games{flex-direction:row;gap:10px;padding:6px 12px 6px;overflow:hidden}
+body.land .gcard{flex:1;min-width:0;flex-direction:column;align-items:stretch;gap:4px;padding:10px 12px;min-height:0}
+body.land .gcard .emoji{font-size:26px;width:auto;text-align:left;line-height:1}
+body.land .gcard .txt h3{font-size:16px;margin-bottom:2px}
+body.land .gcard .txt p{font-size:10.5px;line-height:1.45}
+body.land .gcard .btn{align-self:flex-start;margin-top:2px}
+body.land .lobby-foot{padding:0 12px 4px}
+body.land .ver-line{padding:0 12px 6px}
+body.land .seats{max-width:none}
+body.land .seat{width:92px;height:92px}
+body.land .match-wrap{gap:10px;padding:8px}
+.ver-line{text-align:center;font-size:11px;color:#7fae94;padding:0 14px 10px}
+.ver-line #verTag{color:var(--gold);font-weight:700;text-decoration:underline}
 
 /* ================= 匹配 ================= */
 .match-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:16px}
@@ -129,19 +147,12 @@ body{
 
 /* 飞牌 / 飞豆动画 */
 .fly-layer{position:fixed;inset:0;pointer-events:none;z-index:60}
-.fly-card{position:fixed;transition:transform .38s cubic-bezier(.25,.8,.4,1),opacity .38s;will-change:transform}
-.fly-bean{position:fixed;width:15px;height:15px;border-radius:50%;will-change:transform;
+.fly-card{position:fixed;transition:transform .52s cubic-bezier(.25,.8,.4,1),opacity .52s;will-change:transform}
+.fly-bean{position:fixed;width:17px;height:17px;border-radius:50%;will-change:transform;
   background:radial-gradient(circle at 32% 30%,#fff8d0,#ffcc33 45%,#c98a09);
   box-shadow:0 0 7px rgba(255,205,70,.95),inset 0 -2px 2px rgba(0,0,0,.3)}
 .win-glow{animation:winGlow .9s ease-out}
 @keyframes winGlow{0%{box-shadow:0 0 0 0 rgba(255,215,106,0)}40%{box-shadow:0 0 0 3px rgba(255,215,106,.9),0 0 18px rgba(255,215,106,.8)}100%{box-shadow:0 0 0 0 rgba(255,215,106,0)}}
-
-/* 竖屏提示 */
-#rotate{position:fixed;inset:0;background:#08251a;z-index:90;display:none;flex-direction:column;
-  align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
-#rotate .ico{font-size:52px;animation:rot 2s ease-in-out infinite}
-@keyframes rot{0%,40%{transform:rotate(0)}60%,100%{transform:rotate(90deg)}}
-@media (orientation:portrait) and (max-width:900px){ #rotate{display:flex} }
 
 /* ================= 牌 ================= */
 .card{position:relative;width:var(--cw,46px);height:calc(var(--cw,46px)*1.44);border-radius:5px;background:#fff;
@@ -199,17 +210,25 @@ body{
 .pwr-banner .v{color:#ffe38a;font-size:13px;font-weight:900}
 .pwr-banner.win .v{color:#7a2f00}
 .rank-badge{width:17px;height:17px;border-radius:50%;font-size:11px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.rank-big{width:22px;height:22px;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.6)}
+.reveal-tag{display:flex;align-items:center;gap:4px;justify-content:center;font-size:11px;font-weight:800;
+  background:rgba(0,0,0,.62);border-radius:8px;padding:1px 7px;white-space:nowrap;animation:pop .25s}
+.reveal-tag.first{box-shadow:0 0 0 1.5px var(--gold),0 0 12px rgba(255,215,106,.7)}
+.reveal-tag .amt{font-size:13px;font-weight:900}
 .rk1{background:linear-gradient(#ffe58a,#e0a12c);color:#5a2f00;box-shadow:0 0 8px rgba(255,200,80,.9)}
 .rk2{background:linear-gradient(#c8dcff,#5a86c8);color:#0d2140}
 .rk3{background:linear-gradient(#ffcaa0,#d07a2a);color:#3a1a00}
 .rk4{background:linear-gradient(#d8d8d8,#7a7a7a);color:#222}
-.float-bean{position:absolute;left:50%;transform:translateX(-50%);font-size:15px;font-weight:900;z-index:22;
-  pointer-events:none;text-shadow:0 2px 5px #000;animation:floatUp 1.5s ease-out forwards;white-space:nowrap}
-.float-bean.up{color:#8dffb8}.float-bean.dn{color:#ff9a8f}
-@keyframes floatUp{0%{opacity:0;transform:translate(-50%,10px) scale(.7)}
-  18%{opacity:1;transform:translate(-50%,0) scale(1.1)}
-  35%{transform:translate(-50%,-2px) scale(1)}
-  100%{opacity:0;transform:translate(-50%,-34px) scale(1)}}
+.float-bean{position:absolute;left:50%;transform:translateX(-50%);font-size:26px;font-weight:900;z-index:22;
+  pointer-events:none;animation:floatUp 2.2s ease-out forwards;white-space:nowrap;letter-spacing:.5px;
+  -webkit-text-stroke:1px rgba(0,0,0,.65);text-shadow:0 3px 8px #000,0 0 14px rgba(0,0,0,.9)}
+.float-bean .bean i{width:18px;height:18px}
+.float-bean.up{color:#7dffae}.float-bean.dn{color:#ff8272}
+@keyframes floatUp{0%{opacity:0;transform:translate(-50%,14px) scale(.5)}
+  14%{opacity:1;transform:translate(-50%,0) scale(1.35)}
+  26%{transform:translate(-50%,-2px) scale(1)}
+  72%{opacity:1;transform:translate(-50%,-26px) scale(1)}
+  100%{opacity:0;transform:translate(-50%,-46px) scale(1)}}
 .zone-line{font-size:10.5px;color:#cfe4ff;letter-spacing:.5px;margin-top:3px}
 .zone-line b{color:var(--gold)}
 
@@ -283,8 +302,10 @@ table.rt td:last-child{text-align:right;color:var(--gold);font-weight:700;white-
     </div>
     <div class="lobby-foot">
       <button class="btn sm grey" id="btnRulesLobby">玩法说明</button>
+      <button class="btn sm grey" id="btnHardReload">强制刷新</button>
       <button class="btn sm grey" id="btnReset">重置数据</button>
     </div>
+    <div class="ver-line"><span id="verTag">v—</span> · 点这里看版本信息</div>
   </section>
 
   <section id="match" class="screen th-lobby">
@@ -322,9 +343,6 @@ table.rt td:last-child{text-align:right;color:var(--gold);font-weight:700;white-
 
   <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
   <div class="fly-layer" id="flyLayer"></div>
-  <div id="rotate"><div class="ico">📱</div>
-    <div style="font-size:17px;letter-spacing:2px" class="gold-txt">请横屏使用</div>
-    <div style="font-size:12px;color:#bfe6cf">三合棋牌是横屏牌桌<br>把手机转成横向即可开始</div></div>
 </div>
 <script src="js/core.js"></script>
 <script src="js/baque.js"></script>
