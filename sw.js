@@ -1,5 +1,5 @@
 /* 三合棋牌 Service Worker：离线优先 */
-const CACHE = 'sanhe-qipai-v3';
+const CACHE = 'sanhe-qipai-v4';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './js/core.js', './js/baque.js', './js/douxian.js', './js/sanguo.js',

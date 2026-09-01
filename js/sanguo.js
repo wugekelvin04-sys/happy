@@ -15,12 +15,15 @@ const SG_CAMPS = [
   { k: 'shu', n: '蜀', pub: 0, cls: 'shu' },
   { k: 'wu', n: '吴', pub: 2, cls: 'wu' }
 ];
+/* 官方牌型（正式名 / 通称 / 倍率），大小顺序：
+   同心连环 > 四象强弩 > 三军两将 > 同袍营 > 连环计 > 三英阵 > 双翼斩 > 双雄 > 单骑 */
 const SG_TYPES = [
-  ['单张', 1], ['对子', 2], ['两对', 5], ['三张', 20], ['顺子', 50],
-  ['同花', 70], ['三带二', 100], ['四炸', 200], ['同花顺', 500]
+  ['单骑', '单张', 10], ['双雄', '对子', 20], ['双翼斩', '两对', 30], ['三英阵', '三张', 40],
+  ['连环计', '顺子', 60], ['同袍营', '同花', 80], ['三军两将', '三带二', 100],
+  ['四象强弩', '四炸', 400], ['同心连环', '同花顺', 1000]
 ];
-/* 名次系数：第 1 名赢所有人，2~5 名「名次越靠前扣豆越多」 */
-const SG_RANKMUL = [0, 4, 3, 2, 1];
+/* 名次倍率（官方表）：第 1 名赢所有人 */
+const SG_RANKMUL = [0, 32, 24, 12, 4];
 function sgEval5(cards) {
   const rs = cards.map(c => c.r).sort((a, b) => b - a);
   const cnt = {}; rs.forEach(r => cnt[r] = (cnt[r] || 0) + 1);
@@ -46,7 +49,7 @@ function sgEval5(cards) {
   if (t === 8 || t === 4) key = [hi];
   else if (t === 5 || t === 0) key = rs;
   else key = gr.concat(rs);
-  return { t: t, key: key, name: SG_TYPES[t][0], mult: SG_TYPES[t][1], cs: cards };
+  return { t: t, key: key, name: SG_TYPES[t][0], alias: SG_TYPES[t][1], mult: SG_TYPES[t][2], cs: cards };
 }
 function sgCmp(a, b) {
   if (a.t !== b.t) return a.t - b.t;
@@ -109,14 +112,32 @@ class SanguoGame {
     this.delta = [0, 0, 0, 0, 0];
     this.hands = []; this.pubs = [[], [], []];
     this.round = 0; this.sel = new Set(); this.camp = -1; this.busy = false;
+    this.deck = null; this.used = [];
   }
-  deal() {
+  newDeck() {
     const d = [];
     for (const s of SUITS) for (let r = 2; r <= 14; r++) d.push(mkCard(r, s, 0));
-    shuffle(d);
-    this.hands = [];
-    for (let i = 0; i < 5; i++) this.hands.push(d.splice(0, 8).sort((a, b) => b.r - a.r));
-    this.pubs = SG_CAMPS.map(c => d.splice(0, c.pub));
+    return shuffle(d);
+  }
+  draw(n) {
+    const out = [];
+    while (out.length < n) {
+      if (!this.deck.length) { this.deck = shuffle(this.used); this.used = []; }
+      if (!this.deck.length) break;
+      out.push(this.deck.shift());
+    }
+    return out;
+  }
+  /* 官方：下个回合开始时，把所有打出的牌和公共区域的牌与牌堆洗混，再补齐手牌到 8 张 */
+  deal() {
+    if (!this.deck) { this.deck = this.newDeck(); this.used = []; this.hands = [[], [], [], [], []]; }
+    else { this.deck = shuffle(this.deck.concat(this.used)); this.used = []; }
+    for (let i = 0; i < 5; i++) {
+      const need = 8 - this.hands[i].length;
+      if (need > 0) this.hands[i] = this.hands[i].concat(this.draw(need));
+      this.hands[i].sort((a, b) => b.r - a.r);
+    }
+    this.pubs = SG_CAMPS.map(c => this.draw(c.pub));
   }
   run() { this.layout(); this.round = 1; this.startRound(); }
   layout() {
@@ -164,7 +185,7 @@ class SanguoGame {
       d.appendChild(q);
       const bx = document.createElement('div'); bx.className = 'cbest';
       const r = this.reco[ci];
-      bx.innerHTML = r ? ('最大 <b>' + r.ev.name + '</b> <b class="m">×' + r.ev.mult + '</b>') : '—';
+      bx.innerHTML = r ? ('最大 <b>' + r.ev.alias + '</b> <b class="m">×' + r.ev.mult + '</b>') : '—';
       d.appendChild(bx);
       d.onclick = () => { if (!this.busy) this.fillReco(ci); };   // 选国即默认填入该国最大组合
       wrap.appendChild(d);
@@ -267,20 +288,29 @@ class SanguoGame {
     plays[0] = { camp: this.camp, own: mine, ev: sgEval5(mine.concat(this.pubs[this.camp])) };
     for (let i = 1; i < 5; i++) plays[i] = sgBestPlay(this.hands[i], this.pubs);
     const order = [0, 1, 2, 3, 4].slice().sort((a, b) => sgCmp(plays[b].ev, plays[a].ev));
-    const rank = []; order.forEach((p, k) => rank[p] = k + 1);
+    /* 官方：出现多个第一名时，其余玩家的名次顺延（并列同名次） */
+    const rank = []; let cur = 1;
+    order.forEach((p, k) => {
+      if (k > 0 && sgCmp(plays[p].ev, plays[order[k - 1]].ev) !== 0) cur = k + 1;
+      rank[p] = cur;
+    });
     const win = order[0];
-    const sameCamp = order.filter(i => i !== win && plays[i].camp === plays[win].camp).length;
-    const sameType = order.filter(i => i !== win && plays[i].ev.t === plays[win].ev.t).length;
+    const sameCamp = order.filter(i => rank[i] !== 1 && plays[i].camp === plays[win].camp).length;
+    const sameType = order.filter(i => rank[i] !== 1 && plays[i].ev.t === plays[win].ev.t).length;
     const critM = Math.min(8, Math.pow(2, sameCamp));
     const killM = Math.min(8, Math.pow(2, sameType));
     const winMult = plays[win].ev.mult;
     const rd = [0, 0, 0, 0, 0];
+    const winners = order.filter(i => rank[i] === 1);
     for (const i of order) {
-      if (i === win) continue;
-      let pay = this.c.base * winMult * SG_RANKMUL[rank[i] - 1];
+      if (rank[i] === 1) continue;
+      let pay = this.c.base * winMult * (SG_RANKMUL[rank[i] - 1] || 4);
       if (plays[i].camp === plays[win].camp) pay *= critM;
       if (plays[i].ev.t === plays[win].ev.t) pay *= killM;
-      rd[i] -= pay; rd[win] += pay;
+      pay = capPay(pay, this.P[i].beans + this.delta[i], this.c.game.cap);
+      rd[i] -= pay;
+      const share = Math.floor(pay / winners.length);
+      winners.forEach((w, k) => rd[w] += (k === 0 ? pay - share * (winners.length - 1) : share));
     }
     this.lastInfo = { winMult: winMult, critM: critM, killM: killM, sameCamp: sameCamp, sameType: sameType };
     /* 出牌动画：各家的牌飞到自己的出牌区 */
@@ -312,12 +342,19 @@ class SanguoGame {
       + '<div style="font-size:10px;margin-top:1px;color:#ffb3a7">'
       + (sameCamp ? '同阵营 ' + sameCamp + ' 人 → 暴击×' + critM + '　' : '')
       + (sameType ? '同牌型 ' + sameType + ' 人 → 杀×' + killM : '')
-      + (!sameCamp && !sameType ? '名次系数 4/3/2/1' : '') + '</div>';
+      + (!sameCamp && !sameType ? '名次倍率 32/24/12/4' : '') + '</div>';
     this.mid.appendChild(t);
     await sleep(700);
     if (this.c.over) return;
     beanFlow(this.anchors, rd);
     await sleep(500);
+    /* 打出的牌与公共牌进入弃牌堆，下回合与牌堆洗混 */
+    for (let i = 0; i < 5; i++) {
+      const own = plays[i].own;
+      this.hands[i] = this.hands[i].filter(c => own.indexOf(c) < 0);
+      this.used = this.used.concat(own);
+    }
+    this.used = this.used.concat(this.pubs[0], this.pubs[1], this.pubs[2]);
     for (let i = 0; i < 5; i++) this.delta[i] += rd[i];
     for (let i = 1; i < 5; i++) this.seats[i].querySelector('.bn').textContent = fmt(Math.max(0, this.P[i].beans + this.delta[i]));
     $('#tMyBeans').textContent = fmt(Math.max(0, this.P[0].beans + this.delta[0]));
@@ -333,7 +370,7 @@ class SanguoGame {
 }
 
 GAMES.sanguo = {
-  key: 'sanguo', name: '三国牌', seats: 5, base: 10, entry: 50000,
+  key: 'sanguo', name: '三国牌', seats: 5, base: 10, entry: 50000, cap: 20000,
   start(c) { new SanguoGame(c).run(); },
   rules: '<h2>三国牌</h2>'
     + '<h4>基础规则</h4><ul>'
@@ -342,23 +379,31 @@ GAMES.sanguo = {
     + '<li>每轮向三个阵营刷新固定张数的公共牌：<b>魏国 3 张、蜀国 0 张、吴国 2 张</b>。</li></ul>'
     + '<h4>组合出牌</h4><ul>'
     + '<li>从手牌选对应数量的牌，与任一阵营的公共牌组成 <b>5 张牌型</b>进行比拼：<br>'
-    + '　选魏国出 <b>2 张</b>　｜　选蜀国出 <b>5 张</b>　｜　选吴国出 <b>3 张</b></li></ul>'
-    + '<h4>牌型规则</h4>'
+    + '　选魏国出 <b>2 张</b>（3+2）　｜　选蜀国出 <b>5 张</b>（5+0）　｜　选吴国出 <b>3 张</b>（2+3）</li>'
+    + '<li>下个回合开始时，把所有打出的牌和公共区域的牌与牌堆洗混，再把全部玩家的手牌<b>补至 8 张</b>。</li></ul>'
+    + '<h4>牌型规则（大 → 小）</h4>'
     + '<table class="rt"><tr><th>牌型</th><th>说明</th><th>倍率</th></tr>'
-    + '<tr><td>同花顺</td><td>同花色且点数连续</td><td>×500</td></tr>'
-    + '<tr><td>四炸</td><td>四张同点</td><td>×200</td></tr>'
-    + '<tr><td>三带二</td><td>三张同点 + 一对</td><td>×100</td></tr>'
-    + '<tr><td>同花</td><td>五张同花色</td><td>×70</td></tr>'
-    + '<tr><td>顺子</td><td>点数连续</td><td>×50</td></tr>'
-    + '<tr><td>三张</td><td>三张同点</td><td>×20</td></tr>'
-    + '<tr><td>两对</td><td>两组对子</td><td>×5</td></tr>'
-    + '<tr><td>对子</td><td>一组对子</td><td>×2</td></tr>'
-    + '<tr><td>单张</td><td>以上都不是</td><td>×1</td></tr>'
-    + '</table><p style="margin-top:5px;font-size:12px">牌型越大，结算时倍率越高；同牌型比点数，决出 1~5 名。</p>'
-    + '<h4>结算规则</h4><ul>'
-    + '<li>四轮比拼每轮单独结算，豆子实时到账。</li>'
-    + '<li><b>第 1 名赢所有人</b>，拿下全部豆豆；第 2~5 名按名次倍数输豆，<b>名次越靠前，扣豆越多</b>。</li>'
-    + '<li>输家支付 = <b>底分 × 第 1 名牌型倍率 × 名次系数 × 暴击 × 杀牌</b>；名次系数：第 2 名 ×4、第 3 名 ×3、第 4 名 ×2、第 5 名 ×1。</li></ul>'
+    + '<tr><td>同心连环</td><td>同花顺</td><td>×1000</td></tr>'
+    + '<tr><td>四象强弩</td><td>四炸</td><td>×400</td></tr>'
+    + '<tr><td>三军两将</td><td>三带二</td><td>×100</td></tr>'
+    + '<tr><td>同袍营</td><td>同花</td><td>×80</td></tr>'
+    + '<tr><td>连环计</td><td>顺子</td><td>×60</td></tr>'
+    + '<tr><td>三英阵</td><td>三张</td><td>×40</td></tr>'
+    + '<tr><td>双翼斩</td><td>两对</td><td>×30</td></tr>'
+    + '<tr><td>双雄</td><td>对子</td><td>×20</td></tr>'
+    + '<tr><td>单骑</td><td>单张</td><td>×10</td></tr>'
+    + '</table><p style="margin-top:5px;font-size:12px">同牌型先比主体区域的点数，一致时再比踢脚牌；点数 A&gt;K&gt;Q&gt;…&gt;2，花色没有大小之分。</p>'
+    + '<h4>结算规则</h4>'
+    + '<table class="rt"><tr><th>名次</th><th>倍率</th></tr>'
+    + '<tr><td>第 1 名</td><td>赢所有人</td></tr>'
+    + '<tr><td>第 2 名</td><td>32</td></tr>'
+    + '<tr><td>第 3 名</td><td>24</td></tr>'
+    + '<tr><td>第 4 名</td><td>12</td></tr>'
+    + '<tr><td>第 5 名</td><td>4</td></tr></table>'
+    + '<ul><li>四轮每轮单独结算，豆子实时到账；<b>计算牌型倍率时只算第 1 名玩家的牌型</b>。</li>'
+    + '<li>输家支付 = <b>底分 × 第 1 名牌型倍率 × 名次倍率 × 暴击 × 杀牌</b>。</li>'
+    + '<li>出现多个第 1 名时，其余玩家名次顺延（例如有两个第 1 名，剩下的分别是 2、3、4 名）。</li>'
+    + '<li>每次结算不超过场次封顶，也不超过输家全部欢乐豆。</li></ul>'
     + '<h4>暴击与杀牌</h4><ul>'
     + '<li><b>暴击</b>：与第 1 名 <b>同阵营</b> 会被暴击，同阵营人数越多倍率越高（最高 ×8）。</li>'
     + '<li><b>杀牌</b>：与第 1 名 <b>同牌型</b> 会被杀牌，同牌型人数越多扣得越狠（最高 ×8）。</li></ul>'

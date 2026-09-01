@@ -61,8 +61,8 @@ function randomNick() {
 }
 
 /* ---------------- 存档 ---------------- */
-const SAVE_KEY = 'sanhe_qipai_v2';
-const DEFAULT_SAVE = { name: '', beans: 500000, avatar: '🀄️', totalRecharge: 0, games: 0, wins: 0, lastRelief: 0 };
+const SAVE_KEY = 'sanhe_qipai_v3';
+const DEFAULT_SAVE = { name: '', beans: 1000000, avatar: '🀄️', totalRecharge: 0, games: 0, wins: 0, lastRelief: 0 };
 let S = null;
 function loadSave() {
   try {
@@ -116,7 +116,7 @@ function openShop() {
       + (p.bonus ? '<div class="bonus">含赠送 ' + fmt(p.bonus) + '</div>' : '<div class="bonus">&nbsp;</div>')
       + '<div class="px">¥ ' + p.price + '　' + p.label + '</div></div>';
   });
-  h += '</div><h4>破产补助</h4><p>欢乐豆低于 30,000 时可免费领取 <b class="gold-txt">100,000</b>，每 10 分钟一次。</p>'
+  h += '</div><h4>破产补助</h4><p>欢乐豆低于 50,000 时可免费领取 <b class="gold-txt">200,000</b>，每 10 分钟一次。</p>'
     + '<div class="foot"><button class="btn sm" data-relief>领取补助</button><button class="btn sm grey" data-close>关闭</button></div>';
   openModal(h);
   $$('#modal [data-buy]').forEach(el => el.onclick = () => {
@@ -125,9 +125,9 @@ function openShop() {
     refreshMe(); closeModal(); toast('充值成功 +' + fmt(p.amt + p.bonus) + ' 豆', 1400);
   });
   $('#modal [data-relief]').onclick = () => {
-    if (S.beans >= 30000) return toast('豆子还够，不能领补助');
+    if (S.beans >= 50000) return toast('豆子还够，不能领补助');
     if (Date.now() - S.lastRelief < 600000) return toast('补助冷却中，请稍后');
-    S.beans += 100000; S.lastRelief = Date.now(); refreshMe(); closeModal(); toast('补助到账 +100,000');
+    S.beans += 200000; S.lastRelief = Date.now(); refreshMe(); closeModal(); toast('补助到账 +200,000');
   };
   $('#modal [data-close]').onclick = closeModal;
 }
@@ -353,6 +353,13 @@ function beanFlow(anchors, deltas) {
   });
 }
 
+/* 结算封顶：每次结算不能超过场次封顶，也不能超过输家全部欢乐豆 */
+function capPay(amount, loserBeans, cap) {
+  amount = Math.max(0, Math.round(amount));
+  if (cap) amount = Math.min(amount, cap);
+  if (typeof loserBeans === 'number') amount = Math.min(amount, Math.max(0, loserBeans));
+  return amount;
+}
 /* 数字滚动 + 飘豆动画（斗仙牌结算用） */
 function animNumber(el, from, to, ms) {
   if (!el) return;
@@ -411,7 +418,7 @@ function bootstrap() {
     $$('#modal [data-g]').forEach(b => b.onclick = () => showRules(b.dataset.g));
   };
   $('#btnReset').onclick = () => {
-    openModal('<h2>重置数据</h2><p>将清空昵称、欢乐豆与战绩，恢复初始 500,000 豆。确定？</p>'
+    openModal('<h2>重置数据</h2><p>将清空昵称、欢乐豆与战绩，恢复初始 1,000,000 豆。确定？</p>'
       + '<div class="foot"><button class="btn red sm" data-y>确定重置</button><button class="btn grey sm" data-n>取消</button></div>');
     $('#modal [data-y]').onclick = () => { localStorage.removeItem(SAVE_KEY); S = loadSave(); refreshMe(); closeModal(); toast('已重置'); };
     $('#modal [data-n]').onclick = closeModal;

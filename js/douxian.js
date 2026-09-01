@@ -10,27 +10,32 @@
 
 const DX_ZONES = [{ k: 'fan', n: '凡', size: 2 }, { k: 'ling', n: '灵', size: 3 }, { k: 'xian', n: '仙', size: 5 }];
 
-/* ---- 灵力值 ----
-   数值按官方对局视频标定：
-   凡界 清龙 4♥3♥=148、A♥2♥=144、K-Q=166  → 140 + 2×高牌
-   灵界 忘忧花 K高=43 → 30+高牌；连环剑 A23=48、J10 9=56 → 45+高牌
-   仙界 散手 A高=28 → 2×高牌；两仪 一对6=42 → 30+2×高牌
-   结算：每区域两两比较，输赢 = 灵力差 × 底分（视频中 +6000/−3900/−2100 已逐一验算） */
+/* ---- 灵力值（完全按游戏内《牌型大小和倍率》）----
+   灵力值 =（主体牌型的点数大小 × 牌型倍率 + 牌型值）× 回合倍率
+   点数 A>K>Q>…>2；K=13 Q=12 J=11；A 常规 14，组成 A2 / A23 / A2345 时 A 记为 1
+   回合倍率（灵气复苏）：第 1 回合 1，第 2、3 回合 2，第 4 回合 3 */
+const DX_ROUND_MUL = [0, 1, 2, 2, 3];
+/* [牌型倍率, 牌型值] */
 const DX_TABLE = [
-  /* 凡界：系数 2，档距 35 */ { c: 2, base: { '散手': 0, '同花': 35, '飞剑': 70, '两仪': 105, '清龙': 140 } },
-  /* 灵界：系数 1，档距 15 */ { c: 1, base: { '散手': 0, '两仪': 15, '忘忧花': 30, '连环剑': 45, '三清决': 60, '至尊龙': 75 } },
-  /* 仙界：系数 2，档距 30 */ { c: 2, base: { '散手': 0, '两仪': 30, '乾坤对': 60, '三清决': 90, '剑贯长空': 120, '天花乱坠': 150, '三清两仪': 180, '四象神功': 210, '五爪金龙': 240 } }
+  { '清龙': [1, 70], '两仪': [1, 50], '飞剑': [1, 30], '同花': [1, 15], '散手': [1, 0] },
+  { '至尊龙': [2, 100], '三清诀': [2, 70], '连环剑': [1, 45], '忘忧花': [1, 30], '两仪': [1, 15], '散手': [1, 0] },
+  {
+    '五爪金龙': [6, 360], '四象神功': [5, 280], '三清两仪': [5, 200], '剑贯长空': [2, 100],
+    '天花乱坠': [2, 70], '三清诀': [1, 45], '乾坤对': [1, 30], '两仪': [1, 15], '散手': [1, 0]
+  }
 ];
+/* 各区域牌型从大到小（游戏内顺序：仙界是顺子 > 同花） */
 const DX_ORDER = [
   ['清龙', '两仪', '飞剑', '同花', '散手'],
-  ['至尊龙', '三清决', '连环剑', '忘忧花', '两仪', '散手'],
-  ['五爪金龙', '四象神功', '三清两仪', '天花乱坠', '剑贯长空', '三清决', '乾坤对', '两仪', '散手']
+  ['至尊龙', '三清诀', '连环剑', '忘忧花', '两仪', '散手'],
+  ['五爪金龙', '四象神功', '三清两仪', '剑贯长空', '天花乱坠', '三清诀', '乾坤对', '两仪', '散手']
 ];
-function dxScore(zone, name, key) {
-  const t = DX_TABLE[zone];
-  return t.base[name] + t.c * key;
+function dxScore(zone, name, key, round) {
+  const t = DX_TABLE[zone][name];
+  return (key * t[0] + t[1]) * (DX_ROUND_MUL[round] || 1);
 }
-function dxPower(cards, zone) {
+function dxPower(cards, zone, round) {
+  round = round || 1;
   if (!cards || !cards.length) return { p: -1, n: '空' };
   const rs = cards.map(c => c.r).sort((a, b) => b - a);
   const cnt = {}; rs.forEach(r => cnt[r] = (cnt[r] || 0) + 1);
@@ -40,12 +45,12 @@ function dxPower(cards, zone) {
   let straight = false, sHi = rs[0];
   if (uniq.length === rs.length) {
     if (uniq[0] - uniq[uniq.length - 1] === rs.length - 1) straight = true;
-    else if (uniq[0] === 14) {                       // A 当 1 的小顺（A2、A23、A2345）
+    else if (uniq[0] === 14) {                       // A 记为 1：A2 / A23 / A2345
       const alt = uniq.slice(1).concat([1]).sort((a, b) => b - a);
       if (alt[0] - alt[alt.length - 1] === rs.length - 1) { straight = true; sHi = alt[0]; }
     }
   }
-  const mk = (n, k) => ({ p: dxScore(zone, n, k), n: n });
+  const mk = (n, k) => ({ p: dxScore(zone, n, k, round), n: n, key: k });
   if (zone === 0) {                                  // 凡界 2 张
     if (straight && flush) return mk('清龙', sHi);
     if (cnt[gr[0]] === 2) return mk('两仪', gr[0]);
@@ -55,33 +60,33 @@ function dxPower(cards, zone) {
   }
   if (zone === 1) {                                  // 灵界 3 张
     if (straight && flush) return mk('至尊龙', sHi);
-    if (cnt[gr[0]] === 3) return mk('三清决', gr[0]);
+    if (cnt[gr[0]] === 3) return mk('三清诀', gr[0]);
     if (straight) return mk('连环剑', sHi);
     if (flush) return mk('忘忧花', rs[0]);
     if (cnt[gr[0]] === 2) return mk('两仪', gr[0]);
     return mk('散手', rs[0]);
   }
-  /* 仙界 5 张 */
+  /* 仙界 5 张：剑贯长空（顺子）大于天花乱坠（同花） */
   if (straight && flush) return mk('五爪金龙', sHi);
   if (cnt[gr[0]] === 4) return mk('四象神功', gr[0]);
   if (cnt[gr[0]] === 3 && cnt[gr[1]] === 2) return mk('三清两仪', gr[0]);
-  if (flush) return mk('天花乱坠', rs[0]);
   if (straight) return mk('剑贯长空', sHi);
-  if (cnt[gr[0]] === 3) return mk('三清决', gr[0]);
+  if (flush) return mk('天花乱坠', rs[0]);
+  if (cnt[gr[0]] === 3) return mk('三清诀', gr[0]);
   if (cnt[gr[0]] === 2 && cnt[gr[1]] === 2) return mk('乾坤对', gr[0]);
   if (cnt[gr[0]] === 2) return mk('两仪', gr[0]);
   return mk('散手', rs[0]);
 }
 
 /* 在已有 fixed 牌的基础上，从 hand 里挑 need 张，使该区域灵力最大 */
-function dxBestFill(hand, fixed, zone, need) {
+function dxBestFill(hand, fixed, zone, need, round) {
   if (need <= 0) return [];
   if (hand.length < need) return hand.slice(0, need);
   let best = null, bestP = -1;
   const cur = [];
   const rec = (start) => {
     if (cur.length === need) {
-      const p = dxPower(fixed.concat(cur), zone).p;
+      const p = dxPower(fixed.concat(cur), zone, round).p;
       if (p > bestP) { bestP = p; best = cur.slice(); }
       return;
     }
@@ -98,7 +103,7 @@ class DouxianGame {
     this.hands = [[], [], [], []];
     this.field = [0, 1, 2, 3].map(() => [[], [], []]);   // [player][zone] = cards
     this.deck = []; this.used = [];
-    this.round = 0; this.reset = false;
+    this.round = 0; this.reset = [false, false, false, false];
     this.sel = new Set(); this.activeZone = 0; this.phase = '';
   }
   draw(n) {
@@ -171,9 +176,9 @@ class DouxianGame {
     this.activeZone = z;
     const need = DX_ZONES[z].size - this.field[0][z].length;
     if (need > 0 && this.hands[0].length >= need) {
-      const pick = dxBestFill(this.hands[0], this.field[0][z], z, need);
+      const pick = dxBestFill(this.hands[0], this.field[0][z], z, need, this.round);
       pick.forEach(c => { this.field[0][z].push(c); this.hands[0] = this.hands[0].filter(x => x.id !== c.id); });
-      const p = dxPower(this.field[0][z], z);
+      const p = dxPower(this.field[0][z], z, this.round);
       toast(DX_ZONES[z].n + '界最大：' + p.n + ' ' + p.p, 1100);
     }
     this.render(); this.tipPlace();
@@ -207,7 +212,7 @@ class DouxianGame {
       const pw = el.querySelector('.pw');
       if (this.phase === 'place' && need > 0) pw.innerHTML = '<span style="color:#ffd7a8">缺 ' + need + '</span>';
       else if (this.field[0][z].length === DX_ZONES[z].size) {
-        const p = dxPower(this.field[0][z], z); pw.textContent = p.n + ' ' + p.p;
+        const p = dxPower(this.field[0][z], z, this.round); pw.textContent = p.n + ' ' + p.p;
       }
       wrap.appendChild(el);
     }
@@ -268,7 +273,7 @@ class DouxianGame {
     const totalNeed = this.placeTotal || need;
     const zs = (this.round === 1 ? [0, 1] : [0, 1, 2]).map(z => {
       if (this.field[0][z].length < DX_ZONES[z].size) return DX_ZONES[z].n + ' <span style="color:#ffd7a8">缺</span>';
-      const p = dxPower(this.field[0][z], z);
+      const p = dxPower(this.field[0][z], z, this.round);
       return DX_ZONES[z].n + ' <b class="gold-txt">' + p.n + ' ' + p.p + '</b>';
     }).join('　');
     this.tip.innerHTML = '<div class="gold-txt" style="font-size:13px;letter-spacing:2px">第 ' + this.round + ' 回合 · 布阵'
@@ -283,26 +288,11 @@ class DouxianGame {
     order.forEach(z => {
       const need = DX_ZONES[z].size - this.field[0][z].length;
       if (need <= 0) return;
-      const pick = dxBestFill(this.hands[0], this.field[0][z], z, need);
+      const pick = dxBestFill(this.hands[0], this.field[0][z], z, need, this.round);
       pick.forEach(c => { this.field[0][z].push(c); this.hands[0] = this.hands[0].filter(x => x.id !== c.id); });
     });
     this.render(); this.tipPlace();
     if (!silent) toast('已按各区最大自动布阵');
-  }
-  planBest(hand, field, need) {
-    const total = need.reduce((a, b) => a + b, 0);
-    let best = null, bestScore = -1;
-    if (hand.length < total) return [[], [], []];
-    for (let it = 0; it < 700; it++) {
-      const pool = shuffle(hand.slice()).slice(0, total);
-      const plan = [[], [], []]; let k = 0;
-      for (let z = 0; z < 3; z++) for (let j = 0; j < need[z]; j++) plan[z].push(pool[k++]);
-      let sc = 0;
-      for (let z = 0; z < 3; z++) if (field[z].length + plan[z].length === DX_ZONES[z].size)
-        sc += dxPower(field[z].concat(plan[z]), z).p * (z === 2 ? 1.2 : z === 1 ? 1 : .9);
-      if (sc > bestScore) { bestScore = sc; best = plan; }
-    }
-    return best;
   }
   aiPlace(i) {
     // 与玩家的「自动布阵」同一套算法：按 仙 → 灵 → 凡 逐区取最大
@@ -312,7 +302,7 @@ class DouxianGame {
     order.forEach(z => {
       const need = DX_ZONES[z].size - this.field[i][z].length;
       if (need <= 0) return;
-      const pick = dxBestFill(this.hands[i], this.field[i][z], z, need);
+      const pick = dxBestFill(this.hands[i], this.field[i][z], z, need, this.round);
       pick.forEach(c => { this.field[i][z].push(c); this.hands[i] = this.hands[i].filter(x => x.id !== c.id); });
     });
   }
@@ -336,7 +326,7 @@ class DouxianGame {
     this.phase = 'show';
     this.render(true);
     const zones = this.round === 1 ? [0, 1] : [0, 1, 2];
-    const pw = [0, 1, 2, 3].map(i => zones.map(z => dxPower(this.field[i][z], z)));
+    const pw = [0, 1, 2, 3].map(i => zones.map(z => dxPower(this.field[i][z], z, this.round)));
     const total = [0, 0, 0, 0];
     for (let zi = 0; zi < zones.length; zi++) {
       const z = zones[zi];
@@ -352,8 +342,10 @@ class DouxianGame {
       for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
         const d = pw[i][zi].p - pw[j][zi].p;
         if (d === 0) continue;
-        const amt = Math.abs(d) * this.c.base;
-        if (d > 0) { rd[i] += amt; rd[j] -= amt; } else { rd[j] += amt; rd[i] -= amt; }
+        const w = d > 0 ? i : j, l = d > 0 ? j : i;
+        const amt = capPay(Math.abs(d) * this.c.base,
+          this.P[l].beans + this.delta[l] + total[l] + rd[l], this.c.game.cap);
+        rd[w] += amt; rd[l] -= amt;
       }
       const before = total.slice();
       for (let i = 0; i < 4; i++) {
@@ -368,7 +360,7 @@ class DouxianGame {
       this.clearBanners();
     }
     /* 全胜 */
-    const sweepWin = [], sweepLose = [];
+    const sweepWin = [], sweepLose = [], sweepPairs = [];
     const sd = [0, 0, 0, 0];
     for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
       if (i === j) continue;
@@ -378,8 +370,10 @@ class DouxianGame {
         diff += pw[i][zi].p - pw[j][zi].p;
       }
       if (all && diff > 0) {
-        const amt = diff * this.c.base;
+        const amt = capPay(diff * this.c.base,
+          this.P[j].beans + this.delta[j] + total[j] + sd[j], this.c.game.cap);
         sd[i] += amt; sd[j] -= amt;
+        sweepPairs.push([i, j]);
         if (sweepWin.indexOf(i) < 0) sweepWin.push(i);
         if (sweepLose.indexOf(j) < 0) sweepLose.push(j);
       }
@@ -400,27 +394,27 @@ class DouxianGame {
     }
     for (let i = 0; i < 4; i++) this.delta[i] += total[i];
     this.render(true);
-    this.reset = sweepWin.length >= 2 || sweepLose.length >= 2;
-    if (this.reset) bigWin(sweepWin.length >= 2 ? '得证大道' : '隐忍渡劫');
+    /* 官方：一回合内全胜 2 人及以上 →「得证大道」；全输给 2 人及以上 →「隐忍渡劫」。
+       只对触发的那名玩家生效，且在下一回合补牌之后才把场上的牌全部收回手中。 */
+    const winCnt = [0, 0, 0, 0], loseCnt = [0, 0, 0, 0];
+    sweepPairs.forEach(([w, l]) => { winCnt[w]++; loseCnt[l]++; });
+    this.reset = [0, 1, 2, 3].map(i => winCnt[i] >= 2 || loseCnt[i] >= 2);
+    if (this.reset[0]) bigWin(winCnt[0] >= 2 ? '得证大道' : '隐忍渡劫');
+    else if (this.reset.some(Boolean)) toast('有玩家触发了' + (winCnt.some(c => c >= 2) ? '得证大道' : '隐忍渡劫'), 1200);
     this.round++;
     if (this.round > 4) return setTimeout(() => this.finish(), 900);
-    setTimeout(() => this.ascend(), this.reset ? 1400 : 600);
+    setTimeout(() => this.ascend(), this.reset.some(Boolean) ? 1400 : 600);
   }
   /* ---------- 飞升 + 弃牌 ---------- */
   ascend() {
     if (this.c.over) return;
-    for (let i = 0; i < 4; i++) {
-      if (this.reset) {
-        for (let z = 0; z < 3; z++) { this.hands[i] = this.hands[i].concat(this.field[i][z]); this.field[i][z] = []; }
-      } else {
-        this.used = this.used.concat(this.field[i][2]);
-        this.field[i][2] = this.field[i][1];
-        this.field[i][1] = this.field[i][0];
-        this.field[i][0] = [];
-      }
+    for (let i = 0; i < 4; i++) {                 // 飞升：凡→灵、灵→仙、仙界牌回牌堆
+      this.used = this.used.concat(this.field[i][2]);
+      this.field[i][2] = this.field[i][1];
+      this.field[i][1] = this.field[i][0];
+      this.field[i][0] = [];
       this.hands[i].sort((a, b) => b.r - a.r);
     }
-    this.reset = false;
     this.phase = 'discard'; this.sel = new Set();
     this.tip.innerHTML = '<div class="gold-txt" style="font-size:13px;letter-spacing:2px">飞升完成 · 弃牌阶段</div>'
       + '<div class="zone-line">凡→灵、灵→仙、仙界牌回牌堆；可弃掉任意张手牌，下回合补满 8 张</div>';
@@ -435,13 +429,17 @@ class DouxianGame {
       a.innerHTML = '';
       this.used = this.used.concat(this.hands[0].filter(c => this.sel.has(c.id)));
       this.hands[0] = this.hands[0].filter(c => !this.sel.has(c.id));
-      for (let i = 0; i < 4; i++) {
-        // 补牌至少补到 8 张；若下一回合要重新填满三界（10 张），则补到 10 张
-        const want = Math.max(8, this.needCounts(i).reduce((a, b) => a + b, 0));
-        const need = want - this.hands[i].length;
+      for (let i = 0; i < 4; i++) {              // 补齐手牌到 8 张
+        const need = 8 - this.hands[i].length;
         if (need > 0) this.hands[i] = this.hands[i].concat(this.draw(need));
-        this.hands[i].sort((x, y) => y.r - x.r);
       }
+      /* 补牌后，触发得证大道 / 隐忍渡劫的玩家把场上的牌全部收回手中，下回合重新填满三界 */
+      for (let i = 0; i < 4; i++) {
+        if (!this.reset[i]) continue;
+        for (let z = 0; z < 3; z++) { this.hands[i] = this.hands[i].concat(this.field[i][z]); this.field[i][z] = []; }
+      }
+      this.reset = [false, false, false, false];
+      for (let i = 0; i < 4; i++) this.hands[i].sort((x, y) => y.r - x.r);
       this.sel = new Set();
       this.startRound();
     });
@@ -462,7 +460,7 @@ class DouxianGame {
 }
 
 GAMES.douxian = {
-  key: 'douxian', name: '斗仙牌', seats: 4, base: 150, entry: 80000,
+  key: 'douxian', name: '斗仙牌', seats: 4, base: 150, entry: 80000, cap: 20000,
   start(c) { new DouxianGame(c).run(); },
   rules: '<h2>斗仙牌</h2>'
     + '<h4>基础设定 · 三界修仙场</h4><ul>'
