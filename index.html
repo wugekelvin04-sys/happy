@@ -146,16 +146,17 @@ body.land .match-wrap{gap:10px;padding:8px}
   display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;width:430px;max-width:60%}
 
 /* 飞牌 / 飞豆动画 */
-.fly-layer{position:fixed;inset:0;pointer-events:none;z-index:60}
-.fly-card{position:fixed;transition:transform .52s cubic-bezier(.25,.8,.4,1),opacity .52s;will-change:transform}
-.fly-bean{position:fixed;width:17px;height:17px;border-radius:50%;will-change:transform;
+.fly-layer{position:fixed;inset:0;pointer-events:none;z-index:60;transform:translateZ(0)}
+.fly-card{position:fixed;will-change:transform,opacity;backface-visibility:hidden}
+.fly-bean{position:fixed;width:17px;height:17px;border-radius:50%;will-change:transform,opacity;
   background:radial-gradient(circle at 32% 30%,#fff8d0,#ffcc33 45%,#c98a09);
   box-shadow:0 0 7px rgba(255,205,70,.95),inset 0 -2px 2px rgba(0,0,0,.3)}
-.win-glow{animation:winGlow .9s ease-out}
-@keyframes winGlow{0%{box-shadow:0 0 0 0 rgba(255,215,106,0)}40%{box-shadow:0 0 0 3px rgba(255,215,106,.9),0 0 18px rgba(255,215,106,.8)}100%{box-shadow:0 0 0 0 rgba(255,215,106,0)}}
+/* 赢家光圈：独立图层，只动 opacity/transform */
+.pulse-ring{position:fixed;border-radius:999px;pointer-events:none;will-change:transform,opacity;
+  border:2px solid rgba(255,215,106,.95);box-shadow:0 0 16px rgba(255,215,106,.75)}
 
 /* ================= 牌 ================= */
-.card{position:relative;width:var(--cw,46px);height:calc(var(--cw,46px)*1.44);border-radius:5px;background:#fff;
+.card{position:relative;contain:layout paint;width:var(--cw,46px);height:calc(var(--cw,46px)*1.44);border-radius:5px;background:#fff;
   box-shadow:0 1px 3px rgba(0,0,0,.45);flex:none;color:#222;overflow:hidden;border:1px solid rgba(0,0,0,.15);transition:transform .12s}
 .card .c-tl{position:absolute;left:2px;top:1px;font-size:calc(var(--cw,46px)*.34);font-weight:800;line-height:1;text-align:center;width:calc(var(--cw,46px)*.4)}
 .card .c-tl small{display:block;font-size:calc(var(--cw,46px)*.3);line-height:1}
@@ -203,13 +204,12 @@ body.land .match-wrap{gap:10px;padding:8px}
 .slot{width:30px;height:43px;border-radius:5px;border:1px dashed rgba(255,255,255,.45);background:rgba(255,255,255,.08);flex:none}
 .slot.sm{width:24px;height:35px}
 
-.toast{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);background:rgba(0,0,0,.8);
-  padding:9px 18px;border-radius:10px;font-size:15px;font-weight:800;z-index:30;animation:pop .2s;pointer-events:none;
-  border:1px solid rgba(255,215,106,.5);text-align:center;max-width:88vw}
-.bigwin{position:absolute;left:50%;top:32%;transform:translate(-50%,-50%);z-index:31;text-align:center;pointer-events:none;
-  font-size:32px;font-weight:900;letter-spacing:4px;animation:pop .3s;white-space:nowrap;
-  background:linear-gradient(#fff8d8,#ffd76a 45%,#e08b1a);-webkit-background-clip:text;background-clip:text;color:transparent;
-  filter:drop-shadow(0 2px 0 #6b4406) drop-shadow(0 4px 10px rgba(0,0,0,.6))}
+.toast-wrap{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);z-index:30;pointer-events:none;max-width:88vw}
+.toast{background:rgba(0,0,0,.8);padding:9px 18px;border-radius:10px;font-size:15px;font-weight:800;
+  will-change:transform,opacity;border:1px solid rgba(255,215,106,.5);text-align:center}
+.bigwin-wrap{position:absolute;left:50%;top:32%;transform:translate(-50%,-50%);z-index:31;pointer-events:none}
+.bigwin{font-size:32px;font-weight:900;letter-spacing:4px;white-space:nowrap;color:#ffd76a;text-align:center;
+  will-change:transform,opacity;text-shadow:0 2px 0 #6b4406,0 4px 12px rgba(0,0,0,.75)}
 
 /* ================= 斗仙牌：三界区域 ================= */
 .realms{display:flex;gap:4px;justify-content:center;align-items:flex-start}
@@ -250,16 +250,12 @@ body.land .match-wrap{gap:10px;padding:8px}
 .rk2{background:linear-gradient(#c8dcff,#5a86c8);color:#0d2140}
 .rk3{background:linear-gradient(#ffcaa0,#d07a2a);color:#3a1a00}
 .rk4{background:linear-gradient(#d8d8d8,#7a7a7a);color:#222}
-.float-bean{position:absolute;left:50%;transform:translateX(-50%);font-size:26px;font-weight:900;z-index:22;
-  pointer-events:none;animation:floatUp 2.2s ease-out forwards;white-space:nowrap;letter-spacing:.5px;
-  -webkit-text-stroke:1px rgba(0,0,0,.65);text-shadow:0 3px 8px #000,0 0 14px rgba(0,0,0,.9)}
+.float-wrap{position:absolute;left:50%;top:0;transform:translateX(-50%);z-index:22;pointer-events:none}
+.float-bean{font-size:26px;font-weight:900;white-space:nowrap;letter-spacing:.5px;opacity:0;
+  will-change:transform,opacity;-webkit-text-stroke:1px rgba(0,0,0,.65);text-shadow:0 2px 6px rgba(0,0,0,.95)}
 .float-bean .bean i{width:18px;height:18px}
 .float-bean.up{color:#7dffae}.float-bean.dn{color:#ff8272}
-@keyframes floatUp{0%{opacity:0;transform:translate(-50%,14px) scale(.5)}
-  14%{opacity:1;transform:translate(-50%,0) scale(1.35)}
-  26%{transform:translate(-50%,-2px) scale(1)}
-  72%{opacity:1;transform:translate(-50%,-26px) scale(1)}
-  100%{opacity:0;transform:translate(-50%,-46px) scale(1)}}
+
 .zone-line{font-size:10.5px;color:#cfe4ff;letter-spacing:.5px;margin-top:3px}
 .zone-line b{color:var(--gold)}
 
@@ -375,6 +371,7 @@ table.rt td:last-child{text-align:right;color:var(--gold);font-weight:700;white-
   <div class="mask" id="mask"><div class="modal" id="modal"></div></div>
   <div class="fly-layer" id="flyLayer"></div>
 </div>
+<script src="js/vendor/motion.js"></script>
 <script src="js/core.js"></script>
 <script src="js/baque.js"></script>
 <script src="js/douxian.js"></script>

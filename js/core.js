@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.8.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -90,13 +90,20 @@ function refreshMe() {
 
 /* ---------------- 提示 / 弹窗 ---------------- */
 function toast(txt, ms) {
+  const w = document.createElement('div'); w.className = 'toast-wrap';
   const d = document.createElement('div'); d.className = 'toast'; d.textContent = txt;
-  ($('#table').classList.contains('on') ? $('#table') : $('#app')).appendChild(d);
-  setTimeout(() => d.remove(), ms || 1100);
+  w.appendChild(d);
+  ($('#table').classList.contains('on') ? $('#table') : $('#app')).appendChild(w);
+  anim(d, { opacity: [0, 1], scale: [.86, 1] }, { duration: .18, ease: EASE_OUT });
+  setTimeout(() => w.remove(), ms || 1100);
 }
 function bigWin(txt, ms) {
+  const w = document.createElement('div'); w.className = 'bigwin-wrap';
   const d = document.createElement('div'); d.className = 'bigwin'; d.textContent = txt;
-  $('#table').appendChild(d); setTimeout(() => d.remove(), ms || 1500);
+  w.appendChild(d); $('#table').appendChild(w);
+  anim(d, { opacity: [0, 1, 1], scale: [.6, 1.1, 1] },
+    { duration: .38, ease: MO ? Motion.backOut : EASE_OUT });
+  setTimeout(() => w.remove(), ms || 1500);
 }
 function openModal(html) { $('#modal').innerHTML = html; $('#mask').classList.add('on'); $('#modal').scrollTop = 0; }
 function closeModal() { $('#mask').classList.remove('on'); }
@@ -339,31 +346,50 @@ function mkPlaySlot(cfg) {
   return applyPos(d, cfg.play);
 }
 const rectOf = el => el.getBoundingClientRect();
+/* ---------------------------------------------------------------
+   动画统一走 Motion（js/vendor/motion.js，MIT）。
+   Motion 底层用 Web Animations API，动画交给合成器，
+   不会每帧回到主线程改样式，手机上明显更稳。
+   只动 transform / opacity，绝不动 box-shadow / width 这类会重绘重排的属性。
+   --------------------------------------------------------------- */
+const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const MO = (window.Motion && Motion.animate) ? Motion : null;
+const EASE_OUT = MO ? [.22, .68, .28, 1] : 'ease-out';
+/* 统一入口：有 Motion 用 Motion，没有就退回原生 WAAPI */
+function anim(el, kf, opt) {
+  opt = opt || {};
+  if (REDUCED) return { finished: Promise.resolve() };
+  if (MO) return MO.animate(el, kf, opt);
+  if (!el || typeof el.animate !== 'function') return { finished: Promise.resolve() };
+  return el.animate(kf, { duration: (opt.duration || .4) * 1000, delay: (opt.delay || 0) * 1000, fill: 'forwards' });
+}
+const done = a => (a && a.finished ? a.finished : Promise.resolve()).catch(() => { });
+
 /* 一叠牌从 a 飞到 b */
 function flyCards(cards, fromRect, toRect, opts) {
   opts = opts || {};
-  return new Promise(res => {
-    const layer = $('#flyLayer'), step = opts.step || 12, cls = opts.cls || 'tiny';
-    if (!cards.length) return res();
-    cards.forEach((c, i) => {
-      const e = opts.back ? backEl('') : cardEl(c, cls);
-      if (opts.cw) {
-        e.style.setProperty('--cw', opts.cw + 'px');
-        if (opts.back) { e.style.width = opts.cw + 'px'; e.style.height = Math.round(opts.cw * 1.44) + 'px'; }
-      }
-      e.classList.add('fly-card');
-      e.style.left = fromRect.left + 'px'; e.style.top = fromRect.top + 'px';
-      layer.appendChild(e);
-      const dx = toRect.left - fromRect.left + i * step, dy = toRect.top - fromRect.top;
-      requestAnimationFrame(() => {
-        e.style.transitionDelay = (i * 70) + 'ms';
-        e.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + (opts.scale || 1) + ')';
-        if (opts.fade) e.style.opacity = '0';
-      });
-      setTimeout(() => e.remove(), 620 + i * 70);
-    });
-    setTimeout(res, 560 + cards.length * 70);
+  if (!cards.length) return Promise.resolve();
+  const layer = $('#flyLayer'), step = opts.step || 12;
+  const dur = (opts.dur || 430) / 1000, stagger = (opts.stagger || 55) / 1000;
+  const dx = toRect.left - fromRect.left, dy = toRect.top - fromRect.top;
+  const frag = document.createDocumentFragment(), els = [];
+  cards.forEach(c => {                              // 先一次性建好，避免边建边读布局
+    const e = opts.back ? backEl('') : cardEl(c, opts.cls || 'tiny');
+    if (opts.cw) {
+      e.style.setProperty('--cw', opts.cw + 'px');
+      if (opts.back) { e.style.width = opts.cw + 'px'; e.style.height = Math.round(opts.cw * 1.44) + 'px'; }
+    }
+    e.classList.add('fly-card');
+    e.style.left = fromRect.left + 'px'; e.style.top = fromRect.top + 'px';
+    frag.appendChild(e); els.push(e);
   });
+  layer.appendChild(frag);
+  return Promise.all(els.map((e, i) => {
+    const kf = { x: [0, dx + i * step], y: [0, dy] };
+    if (opts.fade) kf.opacity = [1, 0];
+    return done(anim(e, kf, { duration: dur, delay: i * stagger, ease: EASE_OUT }))
+      .then(() => e.remove());
+  }));
 }
 /* 一张牌飞进手牌里它排好序之后的位置 */
 async function flyIntoHand(card, fromRect, handEl, cw) {
@@ -374,43 +400,62 @@ async function flyIntoHand(card, fromRect, handEl, cw) {
   await flyCards([card], fromRect, to, { step: 0, cw: cw || 42 });
   el.style.visibility = '';
 }
-/* 欢乐豆从输家飞到赢家 */
-function flyBeans(fromEl, toEl, amount) {
-  if (!fromEl || !toEl) return;
-  const a = rectOf(fromEl), b = rectOf(toEl), layer = $('#flyLayer');
-  const n = Math.max(4, Math.min(12, Math.round(Math.log10(Math.max(10, Math.abs(amount))) * 3)));
-  const ax = a.left + a.width / 2 - 7, ay = a.top + a.height / 2 - 7;
-  const dx = (b.left + b.width / 2 - 7) - ax, dy = (b.top + b.height / 2 - 7) - ay;
+/* 赢家高亮：独立光圈层，只动 opacity/scale */
+function pulseRingRect(r) {
+  if (!r || REDUCED) return;
+  const d = document.createElement('div');
+  d.className = 'pulse-ring';
+  d.style.cssText = 'left:' + (r.left - 3) + 'px;top:' + (r.top - 3) + 'px;'
+    + 'width:' + (r.width + 6) + 'px;height:' + (r.height + 6) + 'px';
+  $('#flyLayer').appendChild(d);
+  done(anim(d, { opacity: [0, 1, 0], scale: [.92, 1.04, 1.16] },
+    { duration: .9, ease: EASE_OUT })).then(() => d.remove());
+}
+const pulseRing = el => { if (el) pulseRingRect(rectOf(el)); };
+/* 欢乐豆从输家飞到赢家：节点数压到 6 个以内 */
+function flyBeansRect(a, b, amount) {
+  if (!a || !b || REDUCED) return;
+  const layer = $('#flyLayer');
+  const n = Math.max(3, Math.min(6, Math.round(Math.log10(Math.max(10, Math.abs(amount))) * 1.6)));
+  const ax = a.left + a.width / 2 - 8, ay = a.top + a.height / 2 - 8;
+  const dx = (b.left + b.width / 2 - 8) - ax, dy = (b.top + b.height / 2 - 8) - ay;
+  const frag = document.createDocumentFragment(), els = [];
   for (let i = 0; i < n; i++) {
     const d = document.createElement('div');
     d.className = 'fly-bean';
     d.style.left = ax + 'px'; d.style.top = ay + 'px';
-    d.style.opacity = '0';
-    layer.appendChild(d);
-    const jx = (Math.random() - .5) * 46, jy = (Math.random() - .5) * 34;
-    requestAnimationFrame(() => {
-      d.style.transition = 'transform .85s cubic-bezier(.3,.75,.35,1), opacity .85s';
-      d.style.transitionDelay = (i * 60) + 'ms';
-      d.style.opacity = '1';
-      d.style.transform = 'translate(' + (dx + jx * .18) + 'px,' + (dy + jy * .18) + 'px) scale(.65)';
-    });
-    setTimeout(() => { d.style.opacity = '0'; }, 740 + i * 60);
-    setTimeout(() => d.remove(), 1080 + i * 60);
+    frag.appendChild(d); els.push(d);
   }
-  toEl.classList.add('win-glow');
-  setTimeout(() => toEl.classList.remove('win-glow'), 1300);
+  layer.appendChild(frag);
+  els.forEach((d, i) => {
+    const jx = (Math.random() - .5) * 40, jy = (Math.random() - .5) * 30;
+    done(anim(d, {
+      x: [0, dx * .35 + jx, dx], y: [0, dy * .35 + jy, dy],
+      scale: [.5, 1, .55], opacity: [0, 1, 0]
+    }, { duration: .78, delay: i * .055, ease: EASE_OUT })).then(() => d.remove());
+  });
 }
-/* 按每家的净输赢，成对播放飞豆（输家 → 赢家） */
+function flyBeans(fromEl, toEl, amount) {
+  if (!fromEl || !toEl) return;
+  const a = rectOf(fromEl), b = rectOf(toEl);
+  flyBeansRect(a, b, amount); pulseRingRect(b);
+}
+/* 按每家的净输赢，成对播放飞豆（输家 → 赢家）。
+   先把所有座位的坐标一次读完，再统一建元素，避免反复触发同步重排。 */
 function beanFlow(anchors, deltas) {
   const win = [], lose = [];
   deltas.forEach((d, i) => { if (d > 0) win.push([i, d]); else if (d < 0) lose.push([i, -d]); });
   if (!win.length || !lose.length) return;
+  const rects = anchors.map(e => e ? rectOf(e) : null);   // 只读这一次
   win.sort((a, b) => b[1] - a[1]);
+  const glow = new Set();
   lose.forEach(([li, la]) => {
     let best = win[0];
     for (const w of win) if (w[1] >= la) { best = w; break; }
-    flyBeans(anchors[li], anchors[best[0]], la);
+    flyBeansRect(rects[li], rects[best[0]], la);
+    glow.add(best[0]);
   });
+  glow.forEach(i => pulseRingRect(rects[i]));
 }
 
 /* 结算封顶：每次结算不能超过场次封顶，也不能超过输家全部欢乐豆 */
@@ -423,23 +468,33 @@ function capPay(amount, loserBeans, cap) {
 /* 数字滚动 + 飘豆动画（斗仙牌结算用） */
 function animNumber(el, from, to, ms) {
   if (!el) return;
-  ms = ms || 1000; const t0 = performance.now();
+  if (REDUCED || from === to) { el.textContent = fmt(to); return; }
+  ms = ms || 900;
+  el.style.fontVariantNumeric = 'tabular-nums';   // 等宽数字，滚动时宽度不变，不会带动重排
+  const t0 = performance.now();
+  let last = -1;
   (function tick(now) {
     const k = Math.min(1, (now - t0) / ms);
-    el.textContent = fmt(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+    if (now - last > 45 || k === 1) {             // 限到 ~22fps，够顺且省一半的排版开销
+      last = now;
+      el.textContent = fmt(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+    }
     if (k < 1) requestAnimationFrame(tick);
   })(t0);
 }
 function floatBean(anchor, delta) {
   if (!anchor || !delta) return;
-  const host = anchor.style.position ? anchor : anchor;
-  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+  if (getComputedStyle(anchor).position === 'static') anchor.style.position = 'relative';
+  const w = document.createElement('div'); w.className = 'float-wrap';
   const d = document.createElement('div');
   d.className = 'float-bean ' + (delta > 0 ? 'up' : 'dn');
   d.innerHTML = '<span class="bean"><i></i></span>' + (delta > 0 ? '+' : '') + fmt(delta);
-  d.style.top = '0px';
-  host.appendChild(d);
-  setTimeout(() => d.remove(), 2300);
+  w.appendChild(d); anchor.appendChild(w);
+  done(anim(d, {
+    y: [14, 0, -4, -26, -44],
+    scale: [.55, 1.3, 1, 1, 1],
+    opacity: [0, 1, 1, 1, 0]
+  }, { duration: 1.9, ease: EASE_OUT })).then(() => w.remove());
 }
 /* 通用按钮生成 */
 function actBtn(txt, cls, fn) {

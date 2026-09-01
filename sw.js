@@ -1,10 +1,10 @@
 /* 三合棋牌 Service Worker
    页面与脚本用「网络优先」：联网时总能拿到最新版本，断网时回落到缓存；
    图标等静态资源用「缓存优先」。 */
-const CACHE = 'sanhe-qipai-v8';
+const CACHE = 'sanhe-qipai-v9';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
-  './js/core.js', './js/baque.js', './js/douxian.js', './js/sanguo.js',
+  './js/vendor/motion.js', './js/core.js', './js/baque.js', './js/douxian.js', './js/sanguo.js',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'
 ];
 self.addEventListener('install', e => {

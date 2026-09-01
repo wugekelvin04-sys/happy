@@ -302,10 +302,17 @@ class DouxianGame {
     this.activeZone = zs.find(z => this.field[0][z].length < DX_ZONES[z].size);
     if (this.activeZone === undefined) this.activeZone = zs[0];
     this.suggestZone(this.activeZone);                          // 只选中建议牌，等玩家确认
+  }
+  /* 布阵阶段的按钮：三界没放满就不出现「确认布阵」 */
+  placeBtns() {
     const a = this.c.act; a.innerHTML = '';
-    actBtn('建议', 'grey', () => this.suggestZone(this.activeZone));
-    actBtn('确认放入', 'blue', () => this.confirmPlace());
-    actBtn('全部收回', 'grey', () => {
+    const full = !this.needCounts(0).some(x => x > 0);
+    if (!full) {
+      actBtn('建议', 'grey', () => this.suggestZone(this.activeZone));
+      actBtn('确认放入', 'blue', () => this.confirmPlace());
+    }
+    const placed = [0, 1, 2].some(z => this.field[0][z].length > this.keep0[z]);
+    if (placed) actBtn('全部收回', 'grey', () => {
       for (let z = 0; z < 3; z++)
         while (this.field[0][z].length > this.keep0[z]) this.hands[0].push(this.field[0][z].pop());
       this.hands[0].sort((x, y) => y.r - x.r);
@@ -313,10 +320,7 @@ class DouxianGame {
       this.activeZone = zz === undefined ? 0 : zz;
       this.suggestZone(this.activeZone);
     });
-    actBtn('确认布阵', '', () => {
-      if (this.needCounts(0).some(x => x > 0)) return toast('还有区域没放满');
-      a.innerHTML = ''; this.resolve();
-    });
+    if (full) actBtn('确认布阵', '', () => { a.innerHTML = ''; this.resolve(); });
   }
   tipPlace() {
     const need = this.needCounts(0).reduce((a, b) => a + b, 0);
@@ -350,6 +354,7 @@ class DouxianGame {
       + '<span style="font-size:11px;letter-spacing:0"> （已放入 ' + (totalNeed - need) + '/' + totalNeed + '）</span></div>'
       + '<div style="font-size:11px;margin-top:1px">' + zs + '</div>'
       + '<div class="zone-line">' + preview + '</div>';
+    if (this.phase === 'place') this.placeBtns();
   }
   autoPlace(silent) {
     for (let z = 0; z < 3; z++) while (this.field[0][z].length > this.keep0[z]) this.hands[0].push(this.field[0][z].pop());
@@ -493,11 +498,7 @@ class DouxianGame {
     for (let i = 1; i < 4; i++) this.aiDiscard(i);
     this.render();
     const a = this.c.act; a.innerHTML = '';
-    actBtn('智能弃牌', 'grey', () => {
-      this.sel = new Set(this.hands[0].filter(c => c.r < 10 && this.hands[0].filter(x => x.r === c.r).length < 2).map(c => c.id));
-      this.render();
-    });
-    actBtn('确认', '', () => {
+    actBtn('确认弃牌', '', () => {
       a.innerHTML = '';
       this.used = this.used.concat(this.hands[0].filter(c => this.sel.has(c.id)));
       this.hands[0] = this.hands[0].filter(c => !this.sel.has(c.id));

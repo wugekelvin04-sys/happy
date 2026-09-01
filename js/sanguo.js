@@ -300,16 +300,11 @@ class SanguoGame {
     for (let k = 0; k < cells.length; k++) {
       if (this.c.over) return;
       const el = cells[k];
-      el.style.transition = 'transform .16s linear';
-      el.style.transform = 'rotateY(90deg)';
-      await sleep(140);
+      await done(anim(el, { rotateY: [0, 90] }, { duration: .15, ease: 'linear' }));
+      if (this.c.over) return;
       el.innerHTML = ''; el.appendChild(this.faceEl(cs[k], pubSet, big));
-      el.style.transition = 'none';
-      el.style.transform = 'rotateY(-90deg)';
-      await sleep(20);
-      el.style.transition = 'transform .18s linear';
-      el.style.transform = 'rotateY(0deg)';
-      await sleep(110);
+      await done(anim(el, { rotateY: [-90, 0] }, { duration: .17, ease: 'linear' }));
+      await sleep(60);
     }
   }
   /* 名次徽章 + 牌型（+ 输赢豆） */
