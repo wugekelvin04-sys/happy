@@ -3,25 +3,34 @@
 单机离线棋牌合集，纯前端（一个 `index.html`，无框架、无网络请求），
 针对 iPhone Safari 设计，可「添加到主屏幕」当成 App 使用。
 
-## 装到 iPhone 上
+## 装到 iPhone 上（推荐：直接用线上地址）
 
-iOS 的「添加到主屏幕」需要通过 `http(s)` 打开（直接双击本地文件不行），
-所以先在 Mac 上起一个静态服务器：
+已发布到 GitHub Pages：**https://wugekelvin04-sys.github.io/happy/**
+
+1. iPhone 用 **Safari** 打开上面的地址（必须是 Safari，Chrome 不能添加 PWA）；
+2. 点底部「分享」→「添加到主屏幕」→ 添加；
+3. 首次打开后 Service Worker 会缓存全部资源，之后**断网也能玩**。
+
+更新方式：改完代码 `git push` 即可，GitHub Pages 自动重新发布；
+手机上下次联网打开时会拉到新版本（Service Worker 缓存名 `sanhe-qipai-v1`，
+改动较大时把 `sw.js` 里的 `CACHE` 版本号一起改掉，能强制刷新缓存）。
+
+## 本地调试
+
+也可以在 Mac 上起一个静态服务器（局域网内 iPhone 同样能装）：
 
 ```bash
 cd /Users/bytedance/app/happy
 ./serve.sh          # 默认 8080 端口，可传参 ./serve.sh 9000
 ```
 
-终端会打印一个局域网地址，例如 `http://192.168.1.23:8080/`。
+终端会打印一个局域网地址（例如 `http://192.168.1.23:8080/`），
+iPhone 与 Mac 连同一个 Wi-Fi 即可访问。
 
-1. iPhone 与 Mac 连同一个 Wi-Fi；
-2. 用 **Safari**（必须是 Safari，Chrome 不支持添加 PWA）打开该地址；
-3. 点底部「分享」→「添加到主屏幕」→ 添加；
-4. 首次打开后 Service Worker 会把所有资源缓存下来，
-   之后**关掉 Mac 上的服务器也能照常玩**（全离线）。
-
-想长期保留，把整个目录传到任意静态托管（GitHub Pages / Vercel / 自己的 Nginx）即可。
+> 注意：本地调试时 Service Worker 会缓存旧版页面。改完代码看不到变化，
+> 在浏览器控制台执行一次
+> `for(const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); for(const k of await caches.keys()) await caches.delete(k);`
+> 然后刷新。
 
 ## 文件
 
