@@ -140,4 +140,5 @@
 | 斗仙牌牌型判定 | `js/douxian.js` → `dxPower()` |
 | 三国牌倍率 / 名次系数 | `js/sanguo.js` → `SG_TYPES` / `SG_RANKMUL` |
 | 各玩法底分与进场门槛 | 各文件末尾 `GAMES.*.base` / `GAMES.*.entry` |
-| 人机强度 | `BaqueGame.bestDiscard()` / `DouxianGame.planBest()` / `sgBestPlay()` |
+| 人机强度 | `BaqueGame.bestDiscard()` / `DouxianGame.aiPlace()`+`dxBestFill()` / `sgBestPlay()` |
+| 座位环 / 出牌区坐标 | `js/core.js` → `RING` |

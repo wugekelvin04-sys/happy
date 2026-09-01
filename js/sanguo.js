@@ -87,6 +87,21 @@ function sgBestPlay(hand, pubs) {
   return best;
 }
 const sgStrongest = sgBestPlay;
+/* 每个阵营各自能做出的最强 5 张牌型（玩家侧推荐用） */
+function sgBestPerCamp(hand, pubs) {
+  const out = [];
+  for (let ci = 0; ci < 3; ci++) {
+    const need = 5 - SG_CAMPS[ci].pub;
+    if (need > hand.length) { out.push(null); continue; }
+    let best = null;
+    for (const own of combos(hand, need)) {
+      const ev = sgEval5(own.concat(pubs[ci]));
+      if (!best || sgCmp(ev, best.ev) > 0) best = { camp: ci, own: own, ev: ev };
+    }
+    out.push(best);
+  }
+  return out;
+}
 
 class SanguoGame {
   constructor(c) {
@@ -105,71 +120,121 @@ class SanguoGame {
   }
   run() { this.layout(); this.round = 1; this.startRound(); }
   layout() {
-    const b = this.c.body; b.innerHTML = ''; this.seats = [];
-    const pos = [null, 'p-right sg', 'p-top3', 'p-top2', 'p-left sg'];
+    const b = this.c.body;
+    [...b.querySelectorAll('.seat-chip,.play-slot,.center-zone')].forEach(e => e.remove());
+    this.seats = []; this.slots = [];
+    const R = RING[5];
     for (let i = 1; i < 5; i++) {
-      const el = seatBox(this.P[i], '<span class="hs">8 张</span>', pos[i]);
+      const el = mkSeat(this.P[i], R[i], '<span class="hs">8 张</span>');
       b.appendChild(el); this.seats[i] = el;
+      const sl = mkPlaySlot(R[i]); sl.style.flexDirection = 'column'; sl.style.gap = '1px';
+      b.appendChild(sl); this.slots[i] = sl;
     }
-    this.mid = document.createElement('div');
-    this.mid.style.cssText = 'position:absolute;left:0;right:0;top:54%;transform:translateY(-50%)';
+    this.slots[0] = mkPlaySlot(R[0]); this.slots[0].style.flexDirection = 'column'; this.slots[0].style.gap = '1px';
+    b.appendChild(this.slots[0]);
+    this.mid = document.createElement('div'); this.mid.className = 'center-zone';
     b.appendChild(this.mid);
+    this.anchors = [$('.me-bar'), this.seats[1], this.seats[2], this.seats[3], this.seats[4]];
   }
   renderCamps() {
     this.mid.innerHTML = '';
+    /* 先算出每个阵营能做到的最强牌型，作为推荐 */
+    this.reco = sgBestPerCamp(this.hands[0], this.pubs);
+    let bestCi = -1;
+    this.reco.forEach((r, i) => { if (r && (bestCi < 0 || sgCmp(r.ev, this.reco[bestCi].ev) > 0)) bestCi = i; });
+    this.recoBest = bestCi;
+
     const tip = document.createElement('div');
-    tip.style.cssText = 'text-align:center;font-size:12px;margin-bottom:5px';
+    tip.style.cssText = 'text-align:center;font-size:12px;margin-bottom:4px';
     tip.className = 'gold-txt';
     tip.textContent = '第 ' + this.round + '/4 轮 · 选一个阵营出战';
     this.mid.appendChild(tip);
+
     const wrap = document.createElement('div'); wrap.className = 'camps';
     SG_CAMPS.forEach((cp, ci) => {
       const d = document.createElement('div');
-      d.className = 'camp ' + cp.cls + (this.camp === ci ? ' act' : '');
+      d.className = 'camp ' + cp.cls + (this.camp === ci ? ' act' : '') + (ci === bestCi ? ' reco' : '');
       const cc = document.createElement('div'); cc.className = 'cc';
       if (cp.pub === 0) { const s = document.createElement('div'); s.style.cssText = 'font-size:19px'; s.textContent = '🐉'; cc.appendChild(s); }
       else this.pubs[ci].forEach(c => cc.appendChild(cardEl(c, 'tiny')));
-      d.innerHTML = '<div class="cn">' + cp.n + '</div>';
+      d.innerHTML = '<div class="cn">' + cp.n + (ci === bestCi ? ' <span class="reco-tag">推荐</span>' : '') + '</div>';
       d.appendChild(cc);
       const q = document.createElement('div'); q.className = 'cq';
       q.textContent = '公共 ' + cp.pub + ' · 出 ' + (5 - cp.pub) + ' 张';
       d.appendChild(q);
-      d.onclick = () => { if (this.busy) return; this.camp = ci; this.sel = new Set(); this.render(); };
+      const bx = document.createElement('div'); bx.className = 'cbest';
+      const r = this.reco[ci];
+      bx.innerHTML = r ? ('最大 <b>' + r.ev.name + '</b> <b class="m">×' + r.ev.mult + '</b>') : '—';
+      d.appendChild(bx);
+      d.onclick = () => { if (!this.busy) this.fillReco(ci); };   // 选国即默认填入该国最大组合
       wrap.appendChild(d);
     });
     this.mid.appendChild(wrap);
+
     const pv = document.createElement('div');
-    pv.style.cssText = 'text-align:center;font-size:12px;margin-top:6px;min-height:18px';
+    pv.style.cssText = 'text-align:center;font-size:12px;margin-top:6px;min-height:36px;line-height:1.55';
     if (this.camp >= 0) {
       const need = 5 - SG_CAMPS[this.camp].pub;
       const own = this.hands[0].filter(c => this.sel.has(c.id));
-      if (own.length === need) { const e = sgEval5(own.concat(this.pubs[this.camp])); pv.innerHTML = '<b class="gold-txt">' + e.name + ' ×' + e.mult + '</b>'; }
-      else pv.textContent = '已选 ' + own.length + '/' + need + ' 张';
-    } else pv.textContent = '先点上方阵营';
+      const r = this.reco[this.camp];
+      if (own.length === need) {
+        const e = sgEval5(own.concat(this.pubs[this.camp]));
+        const isBest = r && sgCmp(e, r.ev) >= 0;
+        pv.innerHTML = '<div><span style="font-size:11px;opacity:.85">' + SG_CAMPS[this.camp].n + '国 · 当前牌型</span> '
+          + '<b class="gold-txt" style="font-size:15px">' + e.name + ' ×' + e.mult + '</b>'
+          + (isBest ? ' <span style="color:#8dffb8;font-size:11px">已是最大</span>' : '') + '</div>'
+          + (isBest ? '<div style="font-size:11px;opacity:.8">点手牌可自行替换</div>'
+            : '<div style="font-size:11px;color:#ffd7a8">最大可做 <b class="gold-txt">' + r.ev.name + ' ×' + r.ev.mult
+              + '</b>　<span class="tap-reco">还原最大</span></div>');
+      } else {
+        pv.innerHTML = '<div>已选 <b class="gold-txt">' + own.length + '/' + need + '</b> 张，再选 '
+          + (need - own.length) + ' 张即可显示牌型</div>'
+          + (r ? '<div style="font-size:11px;color:#ffd7a8">最大可做 <b class="gold-txt">' + r.ev.name + ' ×' + r.ev.mult
+            + '</b>　<span class="tap-reco">还原最大</span></div>' : '');
+      }
+      const tapEl = pv.querySelector('.tap-reco');
+      if (tapEl) tapEl.onclick = e => { e.stopPropagation(); this.fillReco(this.camp); };
+    } else {
+      const r = bestCi >= 0 ? this.reco[bestCi] : null;
+      pv.innerHTML = '<div>点上方阵营即自动选中该国最大组合</div>'
+        + (r ? '<div style="font-size:11px;color:#ffd7a8">本轮最优：<b class="gold-txt">'
+          + SG_CAMPS[bestCi].n + '国 ' + r.ev.name + ' ×' + r.ev.mult + '</b></div>' : '');
+    }
     this.mid.appendChild(pv);
+  }
+  /* 按该阵营的最大牌型自动选牌 */
+  fillReco(ci) {
+    const r = (this.reco || sgBestPerCamp(this.hands[0], this.pubs))[ci];
+    if (!r) return;
+    this.camp = ci; this.sel = new Set(r.own.map(c => c.id));
+    this.render();
+    toast(SG_CAMPS[ci].n + '国最大：' + r.ev.name + ' ×' + r.ev.mult, 1300);
   }
   render() {
     for (let i = 1; i < 5; i++) {
       this.seats[i].querySelector('.hs').textContent = this.hands[i].length + ' 张';
-      this.seats[i].querySelector('.bn').textContent = fmt(this.P[i].beans + this.delta[i]);
+      this.seats[i].querySelector('.bn').textContent = fmt(Math.max(0, this.P[i].beans + this.delta[i]));
     }
-    if (!this.busy) this.renderCamps();
+    if (!this.busy) { this.renderCamps(); for (let i = 0; i < 5; i++) this.slots[i].innerHTML = ''; }
     const hd = this.c.hand; hd.innerHTML = '';
-    fitHand(hd, this.hands[0].length);
+    fitHand(hd, this.hands[0].length, 42);
     this.hands[0].forEach(c => {
-      const e = cardEl(c);
+      const e = cardEl(c); e.style.setProperty('--cw', '42px');
       if (this.sel.has(c.id)) e.classList.add('sel');
       e.onclick = () => {
         if (this.busy) return;
         if (this.camp < 0) return toast('请先选择阵营');
         const need = 5 - SG_CAMPS[this.camp].pub;
         if (this.sel.has(c.id)) this.sel.delete(c.id);
-        else { if (this.sel.size >= need) return toast('本阵营只需出 ' + need + ' 张'); this.sel.add(c.id); }
+        else {
+          if (this.sel.size >= need) return toast('已选满 ' + need + ' 张，先点掉一张再换');
+          this.sel.add(c.id);
+        }
         this.render();
       };
       hd.appendChild(e);
     });
-    $('#tMyBeans').textContent = fmt(this.P[0].beans + this.delta[0]);
+    $('#tMyBeans').textContent = fmt(Math.max(0, this.P[0].beans + this.delta[0]));
     $('#tMyExtra').textContent = '第 ' + Math.min(4, this.round) + '/4 轮';
   }
   startRound() {
@@ -179,16 +244,21 @@ class SanguoGame {
     this.deal();
     this.render();
     const a = this.c.act; a.innerHTML = '';
-    actBtn('智能选牌', 'grey', () => {
-      const b = sgBestPlay(this.hands[0], this.pubs);
-      this.camp = b.camp; this.sel = new Set(b.own.map(c => c.id));
-      this.render(); toast('推荐：' + SG_CAMPS[b.camp].n + '国 ' + b.ev.name + ' ×' + b.ev.mult);
+    actBtn('自动最大', 'grey', () => {
+      const per = sgBestPerCamp(this.hands[0], this.pubs);
+      let bi = -1; per.forEach((r, i) => { if (r && (bi < 0 || sgCmp(r.ev, per[bi].ev) > 0)) bi = i; });
+      if (bi >= 0) this.fillReco(bi);
     });
     actBtn('出战', '', () => {
       if (this.camp < 0) return toast('请选择阵营');
       if (this.sel.size !== 5 - SG_CAMPS[this.camp].pub) return toast('出牌张数不对');
       a.innerHTML = ''; this.resolve();
     });
+    /* 进入本轮时默认帮玩家选好全场最大的组合 */
+    const per0 = sgBestPerCamp(this.hands[0], this.pubs);
+    let bi0 = -1; per0.forEach((r, i) => { if (r && (bi0 < 0 || sgCmp(r.ev, per0[bi0].ev) > 0)) bi0 = i; });
+    if (bi0 >= 0) { this.reco = per0; this.camp = bi0; this.sel = new Set(per0[bi0].own.map(c => c.id)); }
+    this.render();
   }
   async resolve() {
     this.busy = true;
@@ -213,39 +283,45 @@ class SanguoGame {
       rd[i] -= pay; rd[win] += pay;
     }
     this.lastInfo = { winMult: winMult, critM: critM, killM: killM, sameCamp: sameCamp, sameType: sameType };
-    /* 展示 */
+    /* 出牌动画：各家的牌飞到自己的出牌区 */
+    const froms = [rectOf(this.c.hand), ...[1, 2, 3, 4].map(i => rectOf(this.seats[i]))];
+    await Promise.all([0, 1, 2, 3, 4].map(i =>
+      flyCards(plays[i].ev.cs.slice().sort((a, b) => b.r - a.r), froms[i], rectOf(this.slots[i]), { cls: 'xs', step: 11 })));
+    if (this.c.over) return;
+    for (let i = 0; i < 5; i++) {
+      const sl = this.slots[i]; sl.innerHTML = '';
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:0';
+      plays[i].ev.cs.slice().sort((a, b) => b.r - a.r).forEach((c, k) => {
+        const e = cardEl(c, 'xs'); if (k) e.style.marginLeft = '-8px'; row.appendChild(e);
+      });
+      sl.appendChild(row);
+      const tag = document.createElement('div');
+      tag.style.cssText = 'font-size:9.5px;white-space:nowrap;background:rgba(0,0,0,.55);border-radius:6px;padding:0 5px;'
+        + (i === win ? 'box-shadow:0 0 0 1px #ffd76a;' : '');
+      tag.innerHTML = '<b class="rank-badge rk' + Math.min(4, rank[i]) + '" style="width:13px;height:13px;font-size:9px">' + rank[i] + '</b> '
+        + '<span style="opacity:.85">' + SG_CAMPS[plays[i].camp].n + '</span> <b class="gold-txt">' + plays[i].ev.name + '</b>'
+        + (rd[i] ? ' <b style="color:' + (rd[i] > 0 ? '#7dffb0' : '#ff9a8f') + '">' + (rd[i] > 0 ? '+' : '') + fmt(rd[i]) + '</b>' : '');
+      sl.appendChild(tag);
+    }
+    /* 中央：冠军牌型与暴击/杀牌 */
     this.mid.innerHTML = '';
     const t = document.createElement('div');
-    t.style.cssText = 'text-align:center;font-size:12px;margin-bottom:3px'; t.className = 'gold-txt';
-    t.textContent = '第 ' + this.round + ' 轮开牌 · 冠军牌型 ' + plays[win].ev.name + ' ×' + winMult;
+    t.style.cssText = 'font-size:12px;background:rgba(0,0,0,.5);border-radius:10px;padding:3px 12px;border:1px solid rgba(255,215,106,.5)';
+    t.innerHTML = '<span class="gold-txt">第 ' + this.round + ' 轮 · 冠军 ' + plays[win].ev.name + ' ×' + winMult + '</span>'
+      + '<div style="font-size:10px;margin-top:1px;color:#ffb3a7">'
+      + (sameCamp ? '同阵营 ' + sameCamp + ' 人 → 暴击×' + critM + '　' : '')
+      + (sameType ? '同牌型 ' + sameType + ' 人 → 杀×' + killM : '')
+      + (!sameCamp && !sameType ? '名次系数 4/3/2/1' : '') + '</div>';
     this.mid.appendChild(t);
-    for (const i of order) {
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:3px;justify-content:center;margin:2px 4px;padding:2px 4px;border-radius:8px;'
-        + 'background:rgba(0,0,0,' + (i === 0 ? '.5' : '.3') + ');' + (i === win ? 'box-shadow:0 0 0 1px #ffd76a;' : '');
-      const nm = document.createElement('span');
-      nm.style.cssText = 'font-size:10px;width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-      nm.innerHTML = '<b>' + rank[i] + '.</b> ' + (i === 0 ? '我' : this.P[i].name);
-      row.appendChild(nm);
-      const cs = plays[i].ev.cs.slice().sort((a, b) => b.r - a.r);
-      cs.forEach(c => row.appendChild(cardEl(c, 'xs')));
-      const tg = document.createElement('span');
-      tg.style.cssText = 'font-size:9.5px;margin-left:3px;white-space:nowrap';
-      tg.innerHTML = '<span style="opacity:.8">' + SG_CAMPS[plays[i].camp].n + '</span> <b class="gold-txt">' + plays[i].ev.name + '</b>'
-        + (rd[i] ? ' <b style="color:' + (rd[i] > 0 ? '#7dffb0' : '#ff9a8f') + '">' + (rd[i] > 0 ? '+' : '') + fmt(rd[i]) + '</b>' : '');
-      row.appendChild(tg);
-      this.mid.appendChild(row);
-    }
-    if (sameCamp || sameType) {
-      const x = document.createElement('div');
-      x.style.cssText = 'text-align:center;font-size:11px;margin-top:3px;color:#ffb3a7';
-      x.textContent = (sameCamp ? '同阵营 ' + sameCamp + ' 人 → 暴击×' + critM + '　' : '')
-        + (sameType ? '同牌型 ' + sameType + ' 人 → 杀×' + killM : '');
-      this.mid.appendChild(x);
-    }
+    await sleep(700);
+    if (this.c.over) return;
+    beanFlow(this.anchors, rd);
+    await sleep(500);
     for (let i = 0; i < 5; i++) this.delta[i] += rd[i];
-    this.render();
-    await sleep(2600);
+    for (let i = 1; i < 5; i++) this.seats[i].querySelector('.bn').textContent = fmt(Math.max(0, this.P[i].beans + this.delta[i]));
+    $('#tMyBeans').textContent = fmt(Math.max(0, this.P[0].beans + this.delta[0]));
+    await sleep(2100);
     if (this.c.over) return;
     this.round++;
     this.startRound();

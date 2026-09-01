@@ -164,56 +164,77 @@ class BaqueGame {
     this.swapPhase();
   }
   layout() {
-    const b = this.c.body; b.innerHTML = ''; this.seats = [];
-    const pos = [null, 'p-right', 'p-top', 'p-left'];
+    const b = this.c.body;
+    [...b.querySelectorAll('.seat-chip,.play-slot,.center-zone')].forEach(e => e.remove());
+    this.seats = []; this.slots = [];
+    const R = RING[4];
     for (let i = 1; i < 4; i++) {
-      const el = seatBox(this.P[i], '<span class="hs">7 张</span>', pos[i]);
-      el.querySelector('.ex').appendChild(backEl(7));
+      const el = mkSeat(this.P[i], R[i], '<span class="hs">7 张</span>');
+      const bk = backEl(7); bk.style.cssText += ';position:absolute;' + (R[i].rev ? 'left:-24px;' : 'right:-24px;') + 'top:2px';
+      el.style.position = 'absolute'; el.appendChild(bk);
       b.appendChild(el); this.seats[i] = el;
+      const sl = mkPlaySlot(R[i]); b.appendChild(sl); this.slots[i] = sl;
     }
-    this.pz = document.createElement('div');
-    this.pz.style.cssText = 'position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:5px;align-items:center;pointer-events:none';
-    b.appendChild(this.pz);
+    this.slots[0] = mkPlaySlot(R[0]); b.appendChild(this.slots[0]);
+    this.center = document.createElement('div'); this.center.className = 'center-zone';
+    b.appendChild(this.center);
+    this.anchors = [$('.me-bar'), this.seats[1], this.seats[2], this.seats[3]];
   }
   render() {
     for (let i = 1; i < 4; i++) {
       const e = this.seats[i];
-      e.querySelector('.hs').innerHTML = this.hands[i].length + ' 张'
+      e.querySelector('.hs').innerHTML = this.hands[i].length + '张'
         + (this.ren[i] ? ' <b style="color:#8fd6ff">忍' + this.ren[i] + '</b>' : '')
         + (this.hus[i] ? ' <b class="gold-txt">胡' + this.hus[i] + '</b>' : '');
       e.querySelector('.cardback-count').textContent = this.hands[i].length;
-      e.querySelector('.bn').textContent = fmt(this.P[i].beans + this.delta[i]);
+      e.querySelector('.bn').textContent = fmt(Math.max(0, this.P[i].beans + this.delta[i]));
+      e.classList.toggle('turn', this.turn === i && !this.c.over);
     }
-    $('#tMyBeans').textContent = fmt(this.P[0].beans + this.delta[0]);
-    this.pz.innerHTML = '';
+    $('#tMyBeans').textContent = fmt(Math.max(0, this.P[0].beans + this.delta[0]));
+    /* 中央：牌堆 + 弃牌堆 */
+    this.center.innerHTML = '';
     const info = document.createElement('div');
-    info.style.cssText = 'font-size:12px;color:#dbeaff';
-    info.innerHTML = '牌堆剩余 <b class="gold-txt">' + this.wall.length + '</b> 张';
-    this.pz.appendChild(info);
+    info.style.cssText = 'font-size:11px;color:#dbeaff;display:flex;align-items:center;gap:6px';
+    info.innerHTML = '<span style="display:inline-block;width:18px;height:25px;border-radius:3px;'
+      + 'background:repeating-linear-gradient(45deg,#1d4ed8 0 3px,#1e3a8a 3px 6px);border:1px solid #fff"></span>'
+      + '牌堆剩余 <b class="gold-txt">' + this.wall.length + '</b> 张';
+    this.center.appendChild(info);
+    this.deckEl = info;
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;flex-wrap:wrap;justify-content:center;gap:2px;max-width:96%';
-    this.discard.slice(-10).forEach(d => {
-      const e = cardEl(d.c, 'tiny');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;justify-content:center;gap:2px;max-width:340px';
+    this.discard.slice(-14).forEach(d => {
+      const e = cardEl(d.c, 'xs');
       if (d.ren) { const r = document.createElement('div'); r.className = 'ren'; r.textContent = '忍'; e.appendChild(r); }
       row.appendChild(e);
     });
-    this.pz.appendChild(row);
-
+    this.center.appendChild(row);
+    this.discardEl = row;
+    /* 每家最近打出的一张 */
+    for (let i = 0; i < 4; i++) {
+      const last = [...this.discard].reverse().find(d => d.by === i);
+      this.slots[i].innerHTML = '';
+      if (last && this.discard.length && this.discard[this.discard.length - 1].by === i) {
+        const e = cardEl(last.c, 'tiny');
+        if (last.ren) { const r = document.createElement('div'); r.className = 'ren'; r.textContent = '忍'; e.appendChild(r); }
+        this.slots[i].appendChild(e);
+      }
+    }
+    /* 我的手牌 */
     const hd = this.c.hand; hd.innerHTML = '';
-    fitHand(hd, this.hands[0].length);
+    fitHand(hd, this.hands[0].length, 42);
     this.hands[0].forEach(c => {
-      const e = cardEl(c);
+      const e = cardEl(c); e.style.setProperty('--cw', '42px');
       if (this.sel.has(c.id)) e.classList.add('sel');
       if (this.drawn === c.id) e.style.marginLeft = '10px';
       e.onclick = () => this.tapCard(c);
       hd.appendChild(e);
     });
     let ex = '';
-    if (this.ren[0]) ex += '忍 ×' + this.ren[0] + '　';
-    if (this.hus[0]) ex += '已胡 ' + this.hus[0] + ' 次';
+    if (this.ren[0]) ex += '忍×' + this.ren[0] + ' ';
+    if (this.hus[0]) ex += '胡' + this.hus[0] + '次';
     if (!ex && this.hands[0].length === 7) {
       const w = bqWaits(this.hands[0], this.seen);
-      if (w.waits.length) ex = '听 ' + w.waits.length + ' 种 · 最高' + w.bestMult + '番';
+      if (w.waits.length) ex = '听' + w.waits.length + '种·最高' + w.bestMult + '番';
     }
     $('#tMyExtra').textContent = ex;
   }
@@ -271,9 +292,12 @@ class BaqueGame {
     if (this.wall.length === 0) return this.finish();
     const i = this.turn;
     const c = this.wall.shift();
+    const fromDeck = this.deckEl ? rectOf(this.deckEl) : null;
     this.hands[i].push(c); this.hands[i].sort(bqSort);
     if (i === 0) { this.drawn = c.id; this.sel = new Set(); }
     this.render();
+    if (fromDeck) flyCards([c], fromDeck, rectOf(i === 0 ? this.c.hand : this.seats[i]),
+      { cls: 'tiny', step: 0, back: i !== 0 });
     const hu = bqHu(this.hands[i]);
     if (i === 0 && !this.auto[0]) { this.phase = 'my'; return this.myTurn(hu); }
     await sleep(300 + rnd(240));
@@ -327,12 +351,14 @@ class BaqueGame {
     return best;
   }
   discardCard(i, card, gainRen) {
+    const from = rectOf(i === 0 ? this.c.hand : this.seats[i]);
     this.hands[i] = this.hands[i].filter(x => x.id !== card.id);
     if (!isWild(card)) this.seen[card.r + card.s] = (this.seen[card.r + card.s] || 0) + 1;
     if (gainRen) { this.ren[i] = Math.min(9, this.ren[i] + 1); if (i === 0) bigWin('忍 ×' + this.ren[0]); else say(this.seats[i], '忍！'); }
     this.discard.push({ c: card, by: i, ren: !!gainRen });
     if (i === 0) { this.sel = new Set(); this.drawn = null; }
     this.render();
+    flyCards([card], from, rectOf(this.slots[i]), { cls: 'tiny', step: 0 });
   }
   async doHu(i, hu, bao) {
     let times = Math.min(8, this.ren[i] + 1);
@@ -345,6 +371,7 @@ class BaqueGame {
     const label = hu.name + ' ' + hu.mult + '番 · 结算' + times + '次' + (hard ? ' · 硬气' : '');
     if (i === 0) bigWin('胡！' + hu.name); else say(this.seats[i], '胡！' + hu.name);
     toast(this.P[i].name + '　' + label, 1500);
+    for (let j = 0; j < 4; j++) if (j !== i) flyBeans(this.anchors[j], this.anchors[i], amt * times);
     this.ren[i] = 0;
     this.auto[i] = true;                       // 官方：第一次胡牌后系统自动接管
     this.hands[i].forEach(c => { if (!isWild(c)) this.seen[c.r + c.s] = (this.seen[c.r + c.s] || 0) + 1; });

@@ -149,16 +149,17 @@ function openMe() {
 const GAMES = {};
 let curGameKey = null, tablePlayers = null, matchTimer = null;
 
-function aiBeans(base) {
-  const mul = Math.random() < .12 ? 4000 + rnd(6000) : 400 + rnd(2600);
-  return Math.round(base * mul / 10) * 10;
+/* 人机携带的欢乐豆：按该玩法的进场门槛缩放，保证经得起本玩法的输赢波动 */
+function aiBeans(g) {
+  const k = Math.random() < .12 ? 8 + Math.random() * 22 : 1.2 + Math.random() * 6;
+  return Math.round(g.entry * k / 1000) * 1000;
 }
 function buildTable(gkey) {
   const g = GAMES[gkey];
   const arr = [{ name: S.name, avatar: S.avatar, beans: S.beans, isMe: true }];
   const used = new Set([S.name]);
   while (arr.length < g.seats) {
-    const a = { name: randomNick(), avatar: pick(AVATARS), beans: aiBeans(g.base), isMe: false };
+    const a = { name: randomNick(), avatar: pick(AVATARS), beans: aiBeans(g), isMe: false };
     if (used.has(a.name)) continue;
     used.add(a.name); arr.push(a);
   }
@@ -232,7 +233,7 @@ function settle(rows, title, subtitle) {
   ctx.over = true; S.games++;
   const meRow = rows.find(r => r.p.isMe);
   if (meRow && meRow.delta > 0) S.wins++;
-  rows.forEach(r => { r.p.beans += r.delta; if (r.p.isMe) S.beans = Math.max(0, r.p.beans); });
+  rows.forEach(r => { r.p.beans = Math.max(0, r.p.beans + r.delta); if (r.p.isMe) S.beans = r.p.beans; });
   refreshMe();
   let h = '<h2>' + title + '</h2>';
   if (subtitle) h += '<p style="text-align:center;font-size:12px;margin-bottom:6px">' + subtitle + '</p>';
@@ -251,6 +252,107 @@ function settle(rows, title, subtitle) {
   };
   $('#modal [data-lobby]').onclick = () => { closeModal(); quitGame(); };
 }
+/* =====================================================================
+   横屏围桌：座位环 / 出牌区 / 飞牌 / 飞豆
+   ===================================================================== */
+/* 每种人数的座位与出牌区坐标（0 号是自己，坐在下方） */
+const RING = {
+  4: [
+    { play: { left: '50%', bottom: '2%', tx: -50 } },
+    { chip: { right: '2px', top: '12%' }, rev: true, play: { right: '21%', top: '42%' } },
+    { chip: { left: '50%', top: '2px', tx: -50 }, play: { left: '50%', top: '34%', tx: -50 } },
+    { chip: { left: '2px', top: '12%' }, play: { left: '21%', top: '42%' } }
+  ],
+  5: [
+    { play: { left: '50%', bottom: '2%', tx: -50 } },
+    { chip: { right: '2px', top: '30%' }, rev: true, play: { right: '20%', top: '54%' } },
+    { chip: { right: '19%', top: '2px' }, rev: true, play: { right: '30%', top: '30%' } },
+    { chip: { left: '19%', top: '2px' }, play: { left: '30%', top: '30%' } },
+    { chip: { left: '2px', top: '30%' }, play: { left: '20%', top: '54%' } }
+  ]
+};
+function applyPos(el, pos) {
+  if (!pos) return el;
+  ['left', 'right', 'top', 'bottom'].forEach(k => { if (pos[k] != null) el.style[k] = pos[k]; });
+  if (pos.tx != null) el.style.transform = 'translateX(' + pos.tx + '%)';
+  return el;
+}
+/* 座位牌：头像 + 昵称 + 豆数 + 自定义信息 */
+function mkSeat(p, cfg, extraHTML) {
+  const d = document.createElement('div');
+  d.className = 'seat-chip' + (cfg.rev ? ' rev' : '');
+  d.innerHTML = '<div class="av">' + p.avatar + '</div>'
+    + '<div class="info"><div class="nm">' + p.name + '</div>'
+    + '<div class="bean gold-txt"><i></i><span class="bn">' + fmt(p.beans) + '</span></div>'
+    + '<div class="ex">' + (extraHTML || '') + '</div></div>';
+  return applyPos(d, cfg.chip);
+}
+function mkPlaySlot(cfg) {
+  const d = document.createElement('div'); d.className = 'play-slot';
+  return applyPos(d, cfg.play);
+}
+const rectOf = el => el.getBoundingClientRect();
+/* 一叠牌从 a 飞到 b */
+function flyCards(cards, fromRect, toRect, opts) {
+  opts = opts || {};
+  return new Promise(res => {
+    const layer = $('#flyLayer'), step = opts.step || 12, cls = opts.cls || 'tiny';
+    if (!cards.length) return res();
+    cards.forEach((c, i) => {
+      const e = opts.back ? backEl('') : cardEl(c, cls);
+      e.classList.add('fly-card');
+      e.style.left = fromRect.left + 'px'; e.style.top = fromRect.top + 'px';
+      layer.appendChild(e);
+      const dx = toRect.left - fromRect.left + i * step, dy = toRect.top - fromRect.top;
+      requestAnimationFrame(() => {
+        e.style.transitionDelay = (i * 45) + 'ms';
+        e.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + (opts.scale || 1) + ')';
+        if (opts.fade) e.style.opacity = '0';
+      });
+      setTimeout(() => e.remove(), 460 + i * 45);
+    });
+    setTimeout(res, 400 + cards.length * 45);
+  });
+}
+/* 欢乐豆从输家飞到赢家 */
+function flyBeans(fromEl, toEl, amount) {
+  if (!fromEl || !toEl) return;
+  const a = rectOf(fromEl), b = rectOf(toEl), layer = $('#flyLayer');
+  const n = Math.max(4, Math.min(12, Math.round(Math.log10(Math.max(10, Math.abs(amount))) * 3)));
+  const ax = a.left + a.width / 2 - 7, ay = a.top + a.height / 2 - 7;
+  const dx = (b.left + b.width / 2 - 7) - ax, dy = (b.top + b.height / 2 - 7) - ay;
+  for (let i = 0; i < n; i++) {
+    const d = document.createElement('div');
+    d.className = 'fly-bean';
+    d.style.left = ax + 'px'; d.style.top = ay + 'px';
+    d.style.opacity = '0';
+    layer.appendChild(d);
+    const jx = (Math.random() - .5) * 46, jy = (Math.random() - .5) * 34;
+    requestAnimationFrame(() => {
+      d.style.transition = 'transform .6s cubic-bezier(.3,.75,.35,1), opacity .6s';
+      d.style.transitionDelay = (i * 40) + 'ms';
+      d.style.opacity = '1';
+      d.style.transform = 'translate(' + (dx + jx * .18) + 'px,' + (dy + jy * .18) + 'px) scale(.65)';
+    });
+    setTimeout(() => { d.style.opacity = '0'; }, 520 + i * 40);
+    setTimeout(() => d.remove(), 780 + i * 40);
+  }
+  toEl.classList.add('win-glow');
+  setTimeout(() => toEl.classList.remove('win-glow'), 950);
+}
+/* 按每家的净输赢，成对播放飞豆（输家 → 赢家） */
+function beanFlow(anchors, deltas) {
+  const win = [], lose = [];
+  deltas.forEach((d, i) => { if (d > 0) win.push([i, d]); else if (d < 0) lose.push([i, -d]); });
+  if (!win.length || !lose.length) return;
+  win.sort((a, b) => b[1] - a[1]);
+  lose.forEach(([li, la]) => {
+    let best = win[0];
+    for (const w of win) if (w[1] >= la) { best = w; break; }
+    flyBeans(anchors[li], anchors[best[0]], la);
+  });
+}
+
 /* 数字滚动 + 飘豆动画（斗仙牌结算用） */
 function animNumber(el, from, to, ms) {
   if (!el) return;

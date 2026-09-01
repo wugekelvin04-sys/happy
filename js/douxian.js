@@ -73,6 +73,24 @@ function dxPower(cards, zone) {
   return mk('散手', rs[0]);
 }
 
+/* 在已有 fixed 牌的基础上，从 hand 里挑 need 张，使该区域灵力最大 */
+function dxBestFill(hand, fixed, zone, need) {
+  if (need <= 0) return [];
+  if (hand.length < need) return hand.slice(0, need);
+  let best = null, bestP = -1;
+  const cur = [];
+  const rec = (start) => {
+    if (cur.length === need) {
+      const p = dxPower(fixed.concat(cur), zone).p;
+      if (p > bestP) { bestP = p; best = cur.slice(); }
+      return;
+    }
+    for (let i = start; i < hand.length; i++) { cur.push(hand[i]); rec(i + 1); cur.pop(); }
+  };
+  rec(0);
+  return best || hand.slice(0, need);
+}
+
 class DouxianGame {
   constructor(c) {
     this.c = c; this.P = c.players; this.n = 4;
@@ -102,75 +120,108 @@ class DouxianGame {
     this.startRound();
   }
   layout() {
-    const b = this.c.body; b.innerHTML = ''; b.style.cssText = 'flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column'; this.rows = [];
+    const b = this.c.body;
+    [...b.querySelectorAll('.seat-chip,.play-slot,.center-zone')].forEach(e => e.remove());
+    b.style.cssText = '';
+    this.seats = []; this.slots = [];
+    const CH = [null, { chip: { right: '2px', top: '26%' }, rev: true }, { chip: { left: '50%', top: '2px', tx: -50 } }, { chip: { left: '2px', top: '26%' } }];
+    const ZP = [{ left: '50%', bottom: '1%', tx: -50 }, { right: '2px', top: '46%' }, { left: '50%', top: '23%', tx: -50 }, { left: '2px', top: '46%' }];
     for (let i = 1; i < 4; i++) {
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 6px;margin:2px 4px;'
-        + 'background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.14);border-radius:10px';
-      row.innerHTML = '<div class="avatar" style="width:26px;height:26px;font-size:13px">' + this.P[i].avatar + '</div>'
-        + '<div style="min-width:60px;max-width:74px;font-size:10.5px;line-height:1.3;position:relative">'
-        + '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700">' + this.P[i].name + '</div>'
-        + '<div class="bean gold-txt"><i></i><span class="bn">' + fmt(this.P[i].beans) + '</span></div></div>'
-        + '<div style="flex:1;display:flex;flex-direction:column;align-items:flex-end;gap:1px">'
-        + '<div class="pwr-wrap"></div><div class="mini-realms"></div></div>';
-      b.appendChild(row); this.rows[i] = row;
+      const el = mkSeat(this.P[i], CH[i], '<span class="hs"></span>');
+      b.appendChild(el); this.seats[i] = el;
     }
-    this.tip = document.createElement('div');
-    this.tip.style.cssText = 'flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center;font-size:12px;padding:4px 8px';
+    for (let i = 0; i < 4; i++) {
+      const sl = document.createElement('div');
+      sl.className = 'play-slot'; sl.style.zIndex = 4;
+      applyPos(sl, ZP[i]); b.appendChild(sl); this.slots[i] = sl;
+    }
+    this.tip = document.createElement('div'); this.tip.className = 'center-zone';
     b.appendChild(this.tip);
+    this.anchors = [$('.me-bar'), this.seats[1], this.seats[2], this.seats[3]];
   }
-  realmEl(cards, size, zi, mini, reveal) {
+  realmEl(pi, zi, mini, reveal) {
+    const cards = this.field[pi][zi], size = DX_ZONES[zi].size;
     const d = document.createElement('div');
     d.className = 'realm' + (!mini && zi === this.activeZone && this.phase === 'place' ? ' act' : '');
+    const nm = document.createElement('div'); nm.className = 'rn'; nm.textContent = DX_ZONES[zi].n;
+    d.appendChild(nm);
     const rs = document.createElement('div'); rs.className = 'rs';
     for (let i = 0; i < size; i++) {
       if (cards[i]) {
-        if (reveal === false) { const b = backEl(''); b.style.width = mini ? '20px' : '26px'; b.style.height = mini ? '29px' : '37px'; rs.appendChild(b); }
-        else rs.appendChild(cardEl(cards[i], mini ? 'tiny' : 'mini'));
-      } else rs.appendChild(slotEl(mini));
+        if (reveal === false) { const bk = backEl(''); bk.style.width = mini ? '17px' : '21px'; bk.style.height = mini ? '24px' : '30px'; rs.appendChild(bk); }
+        else {
+          const e = cardEl(cards[i], mini ? 'xs' : 'tiny');
+          if (!mini && this.phase === 'place') {
+            e.style.cursor = 'pointer';
+            e.onclick = ev => { ev.stopPropagation(); this.pullBack(zi, cards[i]); };
+          }
+          rs.appendChild(e);
+        }
+      } else rs.appendChild(slotEl(true));
     }
-    const nm = document.createElement('div'); nm.className = 'rn'; nm.textContent = DX_ZONES[zi].n;
-    d.appendChild(nm); d.appendChild(rs);
-    if (!mini) { const pw = document.createElement('div'); pw.className = 'pw'; d.appendChild(pw); }
-    if (!mini) d.onclick = () => { if (this.phase === 'place') { this.activeZone = zi; this.render(); } };
+    d.appendChild(rs);
+    if (!mini) {
+      const pw = document.createElement('div'); pw.className = 'pw'; d.appendChild(pw);
+      d.onclick = () => { if (this.phase === 'place') this.pickZone(zi); };
+    }
     return d;
+  }
+  /* 点区域：自动放入该区域当前能做到的最大组合 */
+  pickZone(z) {
+    this.activeZone = z;
+    const need = DX_ZONES[z].size - this.field[0][z].length;
+    if (need > 0 && this.hands[0].length >= need) {
+      const pick = dxBestFill(this.hands[0], this.field[0][z], z, need);
+      pick.forEach(c => { this.field[0][z].push(c); this.hands[0] = this.hands[0].filter(x => x.id !== c.id); });
+      const p = dxPower(this.field[0][z], z);
+      toast(DX_ZONES[z].n + '界最大：' + p.n + ' ' + p.p, 1100);
+    }
+    this.render(); this.tipPlace();
+  }
+  /* 把区域里的牌收回手牌（换牌） */
+  pullBack(z, card) {
+    if (this.field[0][z].length <= this.keep0[z]) return toast('这张是上回合飞升上来的，不能收回');
+    this.field[0][z] = this.field[0][z].filter(x => x.id !== card.id);
+    this.hands[0].push(card); this.hands[0].sort((a, b) => b.r - a.r);
+    this.activeZone = z;
+    this.render(); this.tipPlace();
   }
   render(revealAll) {
     for (let i = 1; i < 4; i++) {
-      const box = this.rows[i].querySelector('.mini-realms');
-      box.innerHTML = '';
+      const box = this.slots[i]; box.innerHTML = '';
+      const mr = document.createElement('div'); mr.className = 'mini-realms';
       for (let z = 0; z < 3; z++) {
         if (this.round === 1 && z === 2) continue;
-        box.appendChild(this.realmEl(this.field[i][z], DX_ZONES[z].size, z, true, revealAll ? true : false));
+        mr.appendChild(this.realmEl(i, z, true, revealAll ? true : false));
       }
-      this.rows[i].querySelector('.bn').textContent = fmt(this.P[i].beans + this.delta[i]);
+      box.appendChild(mr);
+      this.seats[i].querySelector('.bn').textContent = fmt(Math.max(0, this.P[i].beans + this.delta[i]));
+      this.seats[i].querySelector('.hs').textContent = '手牌 ' + this.hands[i].length;
     }
-    const zw = this.c.zone; zw.innerHTML = '';
-    zw.style.position = 'relative';
-    this.myBanner = document.createElement('div'); this.myBanner.className = 'pwr-wrap';
-    zw.appendChild(this.myBanner);
+    const box0 = this.slots[0]; box0.innerHTML = '';
     const wrap = document.createElement('div'); wrap.className = 'realms';
     for (let z = 0; z < 3; z++) {
       if (this.round === 1 && z === 2) continue;
-      const el = this.realmEl(this.field[0][z], DX_ZONES[z].size, z, false, true);
+      const el = this.realmEl(0, z, false, true);
       const need = DX_ZONES[z].size - this.field[0][z].length;
       const pw = el.querySelector('.pw');
-      if (this.phase === 'place' && need > 0) pw.textContent = '缺' + need;
+      if (this.phase === 'place' && need > 0) pw.innerHTML = '<span style="color:#ffd7a8">缺 ' + need + '</span>';
       else if (this.field[0][z].length === DX_ZONES[z].size) {
         const p = dxPower(this.field[0][z], z); pw.textContent = p.n + ' ' + p.p;
       }
       wrap.appendChild(el);
     }
-    zw.appendChild(wrap);
+    box0.appendChild(wrap);
+    this.myBanner = this.myBanner || null;
     const hd = this.c.hand; hd.innerHTML = '';
-    fitHand(hd, this.hands[0].length, 40);
+    fitHand(hd, this.hands[0].length, 38);
     this.hands[0].forEach(c => {
-      const e = cardEl(c); e.style.setProperty('--cw', '40px');
+      const e = cardEl(c); e.style.setProperty('--cw', '38px');
       if (this.sel.has(c.id)) e.classList.add('sel');
       e.onclick = () => this.tapCard(c);
       hd.appendChild(e);
     });
-    $('#tMyBeans').textContent = fmt(this.P[0].beans + this.delta[0]);
+    $('#tMyBeans').textContent = fmt(Math.max(0, this.P[0].beans + this.delta[0]));
     $('#tMyExtra').textContent = '第 ' + Math.min(4, this.round) + '/4 回合';
   }
   tapCard(c) {
@@ -196,14 +247,14 @@ class DouxianGame {
     if (this.c.over) return;
     if (this.round > 4) return this.finish();
     this.phase = 'place'; this.sel = new Set();
-    const need = this.needCounts(0);
-    this.activeZone = need.findIndex(x => x > 0);
-    this.tipPlace();
+    this.keep0 = [0, 1, 2].map(z => this.field[0][z].length);
+    this.placeTotal = this.needCounts(0).reduce((a, b) => a + b, 0);
+    this.activeZone = this.needCounts(0).findIndex(x => x > 0);
     for (let i = 1; i < 4; i++) this.aiPlace(i);
-    this.render();
+    this.autoPlace(true);                       // 进来就按各区最大自动布好，玩家可再替换
     const a = this.c.act; a.innerHTML = '';
-    actBtn('自动布阵', 'grey', () => { this.autoPlace(); });
-    actBtn('收回', 'grey', () => {
+    actBtn('自动布阵', 'grey', () => this.autoPlace());
+    actBtn('全部收回', 'grey', () => {
       for (let z = 0; z < 3; z++) { while (this.field[0][z].length > this.keep0[z]) this.hands[0].push(this.field[0][z].pop()); }
       this.hands[0].sort((x, y) => y.r - x.r); this.render(); this.tipPlace();
     });
@@ -211,23 +262,32 @@ class DouxianGame {
       if (this.needCounts(0).some(x => x > 0)) return toast('还有区域没放满');
       a.innerHTML = ''; this.resolve();
     });
-    this.keep0 = [0, 1, 2].map(z => this.field[0][z].length);
-    this.placeTotal = this.needCounts(0).reduce((a, b) => a + b, 0);
-    this.tipPlace();
   }
   tipPlace() {
     const need = this.needCounts(0).reduce((a, b) => a + b, 0);
     const totalNeed = this.placeTotal || need;
-    this.tip.innerHTML = '<div class="gold-txt" style="font-size:14px;letter-spacing:2px">第 ' + this.round + ' 回合 · 布阵</div>'
-      + '<div style="font-size:12px;margin-top:2px">已放入 <b class="gold-txt">' + (totalNeed - need) + '/' + totalNeed + '</b></div>'
-      + '<div class="zone-line">点区域再点手牌放入；凡 2 张 · 灵 3 张' + (this.round > 1 ? ' · 仙 5 张' : '（仙界第 2 回合开放）') + '</div>';
+    const zs = (this.round === 1 ? [0, 1] : [0, 1, 2]).map(z => {
+      if (this.field[0][z].length < DX_ZONES[z].size) return DX_ZONES[z].n + ' <span style="color:#ffd7a8">缺</span>';
+      const p = dxPower(this.field[0][z], z);
+      return DX_ZONES[z].n + ' <b class="gold-txt">' + p.n + ' ' + p.p + '</b>';
+    }).join('　');
+    this.tip.innerHTML = '<div class="gold-txt" style="font-size:13px;letter-spacing:2px">第 ' + this.round + ' 回合 · 布阵'
+      + '<span style="font-size:11px;letter-spacing:0"> （已放入 ' + (totalNeed - need) + '/' + totalNeed + '）</span></div>'
+      + '<div style="font-size:11px;margin-top:1px">' + zs + '</div>'
+      + '<div class="zone-line">点区域自动放该区最大牌 · 点区域里的牌可收回替换</div>';
   }
-  autoPlace() {
+  autoPlace(silent) {
     for (let z = 0; z < 3; z++) while (this.field[0][z].length > this.keep0[z]) this.hands[0].push(this.field[0][z].pop());
     this.hands[0].sort((x, y) => y.r - x.r);
-    const plan = this.planBest(this.hands[0], this.field[0], this.needCounts(0));
-    for (let z = 0; z < 3; z++) plan[z].forEach(c => { this.field[0][z].push(c); this.hands[0] = this.hands[0].filter(x => x.id !== c.id); });
-    this.render(); this.tipPlace(); toast('已自动布阵');
+    const order = this.round === 1 ? [1, 0] : [2, 1, 0];   // 仙界最值钱，先满足
+    order.forEach(z => {
+      const need = DX_ZONES[z].size - this.field[0][z].length;
+      if (need <= 0) return;
+      const pick = dxBestFill(this.hands[0], this.field[0][z], z, need);
+      pick.forEach(c => { this.field[0][z].push(c); this.hands[0] = this.hands[0].filter(x => x.id !== c.id); });
+    });
+    this.render(); this.tipPlace();
+    if (!silent) toast('已按各区最大自动布阵');
   }
   planBest(hand, field, need) {
     const total = need.reduce((a, b) => a + b, 0);
@@ -245,13 +305,21 @@ class DouxianGame {
     return best;
   }
   aiPlace(i) {
-    const need = this.needCounts(i);
-    const plan = this.planBest(this.hands[i], this.field[i], need);
-    for (let z = 0; z < 3; z++) plan[z].forEach(c => { this.field[i][z].push(c); this.hands[i] = this.hands[i].filter(x => x.id !== c.id); });
+    // 与玩家的「自动布阵」同一套算法：按 仙 → 灵 → 凡 逐区取最大
+    // 少量人机会先照顾灵界，制造一点风格差异
+    const order = this.round === 1 ? [1, 0]
+      : (Math.random() < .22 ? [1, 2, 0] : [2, 1, 0]);
+    order.forEach(z => {
+      const need = DX_ZONES[z].size - this.field[i][z].length;
+      if (need <= 0) return;
+      const pick = dxBestFill(this.hands[i], this.field[i][z], z, need);
+      pick.forEach(c => { this.field[i][z].push(c); this.hands[i] = this.hands[i].filter(x => x.id !== c.id); });
+    });
   }
   /* ---------- 结算 ---------- */
   banner(i, txt, val, rankIdx) {
-    const host = i === 0 ? this.myBanner : this.rows[i].querySelector('.pwr-wrap');
+    let host = this.slots[i].querySelector('.pwr-wrap');
+    if (!host) { host = document.createElement('div'); host.className = 'pwr-wrap'; this.slots[i].insertBefore(host, this.slots[i].firstChild); }
     if (!host) return;
     host.innerHTML = '';
     const d = document.createElement('div');
@@ -261,12 +329,9 @@ class DouxianGame {
     host.appendChild(d);
   }
   clearBanners() {
-    if (this.myBanner) this.myBanner.innerHTML = '';
-    for (let i = 1; i < 4; i++) { const h = this.rows[i].querySelector('.pwr-wrap'); if (h) h.innerHTML = ''; }
+    for (let i = 0; i < 4; i++) { const h = this.slots[i].querySelector('.pwr-wrap'); if (h) h.innerHTML = ''; }
   }
-  beanAnchor(i) {
-    return i === 0 ? $('#tMyBeans').parentNode : this.rows[i].querySelector('.bn').parentNode.parentNode;
-  }
+  beanAnchor(i) { return this.anchors[i]; }
   async resolve() {
     this.phase = 'show';
     this.render(true);
@@ -293,10 +358,11 @@ class DouxianGame {
       const before = total.slice();
       for (let i = 0; i < 4; i++) {
         total[i] += rd[i];
-        const el = i === 0 ? $('#tMyBeans') : this.rows[i].querySelector('.bn');
+        const el = i === 0 ? $('#tMyBeans') : this.seats[i].querySelector('.bn');
         animNumber(el, this.P[i].beans + this.delta[i] + before[i], this.P[i].beans + this.delta[i] + total[i], 700);
         floatBean(this.beanAnchor(i), rd[i]);
       }
+      beanFlow(this.anchors, rd);
       await sleep(1500);
       if (this.c.over) return;
       this.clearBanners();
@@ -324,10 +390,11 @@ class DouxianGame {
       const before = total.slice();
       for (let i = 0; i < 4; i++) {
         total[i] += sd[i];
-        const el = i === 0 ? $('#tMyBeans') : this.rows[i].querySelector('.bn');
+        const el = i === 0 ? $('#tMyBeans') : this.seats[i].querySelector('.bn');
         animNumber(el, this.P[i].beans + this.delta[i] + before[i], this.P[i].beans + this.delta[i] + total[i], 700);
         floatBean(this.beanAnchor(i), sd[i]);
       }
+      beanFlow(this.anchors, sd);
       await sleep(1600);
       if (this.c.over) return;
     }
@@ -355,8 +422,8 @@ class DouxianGame {
     }
     this.reset = false;
     this.phase = 'discard'; this.sel = new Set();
-    this.tip.innerHTML = '<span class="gold-txt">飞升完成 · 弃牌阶段</span><br>'
-      + '<span style="font-size:11px;opacity:.9">可弃掉任意张手牌，下一回合补满 8 张</span>';
+    this.tip.innerHTML = '<div class="gold-txt" style="font-size:13px;letter-spacing:2px">飞升完成 · 弃牌阶段</div>'
+      + '<div class="zone-line">凡→灵、灵→仙、仙界牌回牌堆；可弃掉任意张手牌，下回合补满 8 张</div>';
     for (let i = 1; i < 4; i++) this.aiDiscard(i);
     this.render();
     const a = this.c.act; a.innerHTML = '';
