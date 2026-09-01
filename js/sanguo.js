@@ -284,39 +284,53 @@ class SanguoGame {
       bk.style.height = Math.round((big ? 50 : 40) * 1.44) + 'px';
       f.appendChild(bk); row.appendChild(f);
     }
-    sl.appendChild(row);
     const tag = document.createElement('div');
     tag.className = 'reveal-tag'; tag.style.visibility = 'hidden'; tag.textContent = '—';
-    sl.appendChild(tag);
+    sl.appendChild(tag);          // 名次牌型标在牌的上方
+    sl.appendChild(row);
     return row;
   }
-  /* 逐张翻开某家的牌 */
+  /* 翻开某家的 5 张牌：交错齐翻，整体约 0.55 秒 */
   async flipOpen(i, play, big) {
     const pubSet = new Set(this.pubs[play.camp].map(c => c.id));
     const cs = play.ev.cs.slice().sort((x, y) => y.r - x.r);
     const row = this.slots[i].querySelector('.reveal-row');
+    if (!row) return;
     const cells = [...row.children];
-    for (let k = 0; k < cells.length; k++) {
-      if (this.c.over) return;
-      const el = cells[k];
-      await done(anim(el, { rotateY: [0, 90] }, { duration: .15, ease: 'linear' }));
-      if (this.c.over) return;
-      el.innerHTML = ''; el.appendChild(this.faceEl(cs[k], pubSet, big));
-      await done(anim(el, { rotateY: [-90, 0] }, { duration: .17, ease: 'linear' }));
-      await sleep(60);
-    }
+    const D = 130, S = 55;                       // 单张翻面时长 / 相邻两张的错开
+    cells.forEach((el, k) => {
+      anim(el, { rotateY: [0, 90] }, { duration: D / 1000, delay: k * S / 1000, ease: 'linear' });
+      setTimeout(() => {
+        if (this.c.over) return;
+        el.innerHTML = ''; el.appendChild(this.faceEl(cs[k], pubSet, big));
+        anim(el, { rotateY: [-90, 0] }, { duration: D / 1000, ease: 'linear' });
+      }, k * S + D);
+    });
+    await sleep(cells.length * S + D * 2 + 40);
   }
   /* 名次徽章 + 牌型（+ 输赢豆） */
   setTag(i, play, rank, delta) {
     const tag = this.slots[i].querySelector('.reveal-tag');
     if (!tag) return;
+    const first = tag.style.visibility === 'hidden';
+    const changed = !first && this.shownRank && this.shownRank[i] !== rank;
+    this.shownRank = this.shownRank || {};
+    this.shownRank[i] = rank;
     tag.style.visibility = 'visible';
     tag.className = 'reveal-tag' + (rank === 1 ? ' first' : '');
     tag.innerHTML = '<span class="rank-badge rank-big rk' + Math.min(4, rank) + '">' + rank + '</span>'
-      + '<span style="opacity:.85">' + SG_CAMPS[play.camp].n + '</span>'
+      + '<span class="cn2">' + SG_CAMPS[play.camp].n + '</span>'
       + '<b class="gold-txt">' + play.ev.name + '</b>'
       + (delta ? '<b class="amt" style="color:' + (delta > 0 ? '#7dffae' : '#ff8272') + '">'
         + (delta > 0 ? '+' : '') + fmt(delta) + '</b>' : '');
+    if (first) anim(tag, { opacity: [0, 1], scale: [.6, 1] },
+      { duration: .34, ease: MO ? Motion.backOut : 'ease-out' });
+    else if (changed) {                       // 名次被后面的人挤动了 → 弹一下提示
+      anim(tag, { scale: [1, 1.28, 1] }, { duration: .42, ease: 'ease-out' });
+      const badge = tag.querySelector('.rank-badge');
+      if (badge) anim(badge, { rotate: [0, -14, 10, 0], scale: [1, 1.35, 1] },
+        { duration: .5, ease: 'ease-out' });
+    }
   }
   /* 已开牌的玩家之间重新排名（并列同名次） */
   rankOf(revealed, plays) {
@@ -344,6 +358,7 @@ class SanguoGame {
     head.innerHTML = '<span class="gold-txt">第 ' + this.round + ' 轮 · 亮牌</span>';
     this.mid.appendChild(head);
     /* 每家先扣 5 张 */
+    this.shownRank = {};
     for (let i = 0; i < 5; i++) this.layDown(i, i === 0);
     await sleep(600);
     if (this.c.over) return;
@@ -361,7 +376,7 @@ class SanguoGame {
       head.innerHTML = '<span class="gold-txt">第 ' + this.round + ' 轮 · 亮牌 ' + revealed.length + '/5</span>'
         + '　<span style="font-size:11px">暂列第一：' + (lead === 0 ? '我' : this.P[lead].name)
         + ' <b class="gold-txt">' + plays[lead].ev.name + ' ×' + plays[lead].ev.mult + '</b></span>';
-      await sleep(i === 4 ? 400 : 650);
+      await sleep(i === 4 ? 320 : 460);
     }
     if (this.c.over) return;
 

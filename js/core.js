@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -186,15 +186,34 @@ function openShop() {
   $('#modal [data-close]').onclick = closeModal;
 }
 function openMe() {
-  openModal('<h2>我的资料</h2><p>昵称：<b id="mnm">' + S.name + '</b> <button class="btn xs grey" data-rn>随机换名</button></p>'
-    + '<p style="margin-top:7px">头像：<span id="mav" style="font-size:20px">' + S.avatar + '</span> <button class="btn xs grey" data-ra>随机换头像</button></p>'
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  openModal('<h2>我的资料</h2>'
+    + '<h4>昵称</h4>'
+    + '<div class="row-in"><input class="txt-in" id="nameInput" maxlength="12" value="' + esc(S.name) + '" placeholder="输入你的昵称">'
+    + '<button class="btn sm" data-save>保存</button></div>'
+    + '<p style="font-size:11px;opacity:.75;margin-top:5px">最多 12 个字，改完会一直用这个名字，不会被随机改掉。</p>'
+    + '<h4>头像</h4><p><span id="mav" style="font-size:22px">' + S.avatar + '</span> '
+    + '<button class="btn xs grey" data-ra>随机换头像</button> '
+    + '<button class="btn xs grey" data-rn>随机起个名</button></p>'
     + '<h4>数据</h4><ul><li>欢乐豆：<b class="gold-txt">' + fmt(S.beans) + '</b></li>'
     + '<li>累计对局：' + S.games + ' 局，胜 ' + S.wins + ' 局</li>'
     + '<li>模拟充值：¥ ' + S.totalRecharge + '</li></ul>'
     + '<div class="foot"><button class="btn sm" data-close>关闭</button></div>');
-  $('#modal [data-rn]').onclick = () => { S.name = randomNick(); $('#mnm').textContent = S.name; refreshMe(); };
+  const inp = $('#nameInput');
+  const saveName = () => {
+    const v = (inp.value || '').trim().slice(0, 12);
+    if (!v) return toast('昵称不能为空');
+    S.name = v; refreshMe(); toast('昵称已保存：' + v, 1200);
+  };
+  $('#modal [data-save]').onclick = saveName;
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveName(); } });
+  $('#modal [data-rn]').onclick = () => { inp.value = randomNick(); };
   $('#modal [data-ra]').onclick = () => { S.avatar = pick(AVATARS); $('#mav').textContent = S.avatar; refreshMe(); };
-  $('#modal [data-close]').onclick = closeModal;
+  $('#modal [data-close]').onclick = () => { saveNameIfChanged(inp); closeModal(); };
+  function saveNameIfChanged(el) {
+    const v = (el.value || '').trim().slice(0, 12);
+    if (v && v !== S.name) { S.name = v; refreshMe(); }
+  }
 }
 
 /* =====================================================================
@@ -354,16 +373,48 @@ const rectOf = el => el.getBoundingClientRect();
    --------------------------------------------------------------- */
 const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const MO = (window.Motion && Motion.animate) ? Motion : null;
-const EASE_OUT = MO ? [.22, .68, .28, 1] : 'ease-out';
-/* 统一入口：有 Motion 用 Motion，没有就退回原生 WAAPI */
+const EASE_OUT = [.22, .68, .28, 1];
+/* Motion 的关键帧对象 → 原生 WAAPI 关键帧（没加载到 Motion 时的降级路径） */
+function kfToWaapi(kf) {
+  let len = 1;
+  for (const k in kf) if (Array.isArray(kf[k])) len = Math.max(len, kf[k].length);
+  const at = v => Array.isArray(v) ? v[Math.min(len - 1, v.length - 1)] : v;
+  const out = [];
+  for (let i = 0; i < len; i++) {
+    const pick = v => Array.isArray(v) ? v[Math.min(i, v.length - 1)] : v;
+    const f = {}; let tr = '';
+    if (kf.x != null || kf.y != null) tr += 'translate3d(' + (pick(kf.x) || 0) + 'px,' + (pick(kf.y) || 0) + 'px,0) ';
+    if (kf.scale != null) tr += 'scale(' + pick(kf.scale) + ') ';
+    if (kf.rotateY != null) tr += 'rotateY(' + pick(kf.rotateY) + 'deg) ';
+    if (kf.rotate != null) tr += 'rotate(' + pick(kf.rotate) + 'deg) ';
+    if (tr) f.transform = tr.trim();
+    if (kf.opacity != null) f.opacity = pick(kf.opacity);
+    out.push(f);
+  }
+  void at; return out;
+}
+/* 统一的动画入口。
+   注意：Motion 11 的 animate() 返回值既不是 Promise，也没有 .finished，
+   而且它那个 then 在本环境里不会 resolve —— 所以时序一律用时长驱动，
+   绝不能 await 它的返回值，否则整条流程会卡死。 */
 function anim(el, kf, opt) {
   opt = opt || {};
-  if (REDUCED) return { finished: Promise.resolve() };
-  if (MO) return MO.animate(el, kf, opt);
-  if (!el || typeof el.animate !== 'function') return { finished: Promise.resolve() };
-  return el.animate(kf, { duration: (opt.duration || .4) * 1000, delay: (opt.delay || 0) * 1000, fill: 'forwards' });
+  const ms = Math.round(((opt.duration || .4) + (opt.delay || 0)) * 1000);
+  if (!REDUCED && el) {
+    if (MO) { try { MO.animate(el, kf, opt); } catch (e) { } }
+    else if (typeof el.animate === 'function') {
+      try {
+        el.animate(kfToWaapi(kf), {
+          duration: (opt.duration || .4) * 1000, delay: (opt.delay || 0) * 1000, fill: 'forwards'
+        });
+      } catch (e) { }
+    }
+  }
+  return { finished: new Promise(r => setTimeout(r, REDUCED ? 0 : ms + 40)) };
 }
-const done = a => (a && a.finished ? a.finished : Promise.resolve()).catch(() => { });
+const done = a => (a && a.finished) ? a.finished : Promise.resolve();
+/* 动画播完后移除临时元素 */
+function removeAfter(el, a) { done(a).then(() => el.remove()); }
 
 /* 一叠牌从 a 飞到 b */
 function flyCards(cards, fromRect, toRect, opts) {
@@ -387,8 +438,9 @@ function flyCards(cards, fromRect, toRect, opts) {
   return Promise.all(els.map((e, i) => {
     const kf = { x: [0, dx + i * step], y: [0, dy] };
     if (opts.fade) kf.opacity = [1, 0];
-    return done(anim(e, kf, { duration: dur, delay: i * stagger, ease: EASE_OUT }))
-      .then(() => e.remove());
+    const a = anim(e, kf, { duration: dur, delay: i * stagger, ease: EASE_OUT });
+    removeAfter(e, a);
+    return done(a);
   }));
 }
 /* 一张牌飞进手牌里它排好序之后的位置 */
@@ -408,8 +460,7 @@ function pulseRingRect(r) {
   d.style.cssText = 'left:' + (r.left - 3) + 'px;top:' + (r.top - 3) + 'px;'
     + 'width:' + (r.width + 6) + 'px;height:' + (r.height + 6) + 'px';
   $('#flyLayer').appendChild(d);
-  done(anim(d, { opacity: [0, 1, 0], scale: [.92, 1.04, 1.16] },
-    { duration: .9, ease: EASE_OUT })).then(() => d.remove());
+  removeAfter(d, anim(d, { opacity: [0, 1, 0], scale: [.92, 1.04, 1.16] }, { duration: .9, ease: EASE_OUT }));
 }
 const pulseRing = el => { if (el) pulseRingRect(rectOf(el)); };
 /* 欢乐豆从输家飞到赢家：节点数压到 6 个以内 */
@@ -430,10 +481,10 @@ function flyBeansRect(a, b, amount, streams) {
   layer.appendChild(frag);
   els.forEach((d, i) => {
     const jx = (Math.random() - .5) * 40, jy = (Math.random() - .5) * 30;
-    done(anim(d, {
+    removeAfter(d, anim(d, {
       x: [0, dx * .35 + jx, dx], y: [0, dy * .35 + jy, dy],
       scale: [.5, 1, .55], opacity: [0, 1, 0]
-    }, { duration: .78, delay: i * .055, ease: EASE_OUT })).then(() => d.remove());
+    }, { duration: .78, delay: i * .055, ease: EASE_OUT }));
   });
 }
 function flyBeans(fromEl, toEl, amount) {
@@ -493,11 +544,11 @@ function floatBean(anchor, delta) {
   d.className = 'float-bean ' + (delta > 0 ? 'up' : 'dn');
   d.innerHTML = '<span class="bean"><i></i></span>' + (delta > 0 ? '+' : '') + fmt(delta);
   w.appendChild(d); anchor.appendChild(w);
-  done(anim(d, {
+  removeAfter(w, anim(d, {
     y: [14, 0, -4, -26, -44],
     scale: [.55, 1.3, 1, 1, 1],
     opacity: [0, 1, 1, 1, 0]
-  }, { duration: 1.9, ease: EASE_OUT })).then(() => w.remove());
+  }, { duration: 1.9, ease: EASE_OUT }));
 }
 /* 通用按钮生成 */
 function actBtn(txt, cls, fn) {
@@ -522,6 +573,7 @@ function bootstrap() {
   $$('.gcard').forEach(el => el.onclick = () => gotoMatch(el.dataset.game));
   $('#btnShop').onclick = openShop;
   $('#btnMe').onclick = openMe;
+  $('#myName').onclick = openMe;
   $('#btnRematch').onclick = runMatch;
   $('#btnMatchBack').onclick = () => { clearInterval(matchTimer); show('lobby'); };
   $('#btnMatchStart').onclick = () => { clearInterval(matchTimer); startGame(); };
