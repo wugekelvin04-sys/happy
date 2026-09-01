@@ -1,7 +1,8 @@
 /* 三合棋牌 Service Worker：离线优先 */
-const CACHE = 'sanhe-qipai-v1';
+const CACHE = 'sanhe-qipai-v3';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
+  './js/core.js', './js/baque.js', './js/douxian.js', './js/sanguo.js',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'
 ];
 self.addEventListener('install', e => {
