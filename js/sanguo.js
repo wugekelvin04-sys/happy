@@ -176,27 +176,20 @@ class SanguoGame {
   }
   renderCamps() {
     this.mid.innerHTML = '';
-    const tip = document.createElement('div');
-    tip.style.cssText = 'text-align:center;font-size:12px;margin-bottom:4px';
-    tip.className = 'gold-txt';
-    tip.textContent = '第 ' + this.round + '/4 轮 · 选一个阵营出战';
-    this.mid.appendChild(tip);
+    /* 顶上一行牌型排行（照官方 96 那张，y≈9%） */
+    const rank = document.createElement('div'); rank.className = 'sg-order';
+    rank.textContent = SG_TYPES.slice().reverse().map(t => t[0]).join('>');
+    this.mid.appendChild(rank);
 
     const wrap = document.createElement('div'); wrap.className = 'camps';
     SG_CAMPS.forEach((cp, ci) => {
       const act = this.camp === ci;
       const d = document.createElement('div');
       d.className = 'camp ' + cp.cls + (act ? ' act' : '');
-      /* 公牌（米黄，带「公」）+ 自己已选的牌（白底蓝边，带「我」），凑成完整 5 张，
-         剩下没配够的画成空位，三国都是 5 格看着一样宽。 */
+      // 框里只摆公牌（官方就是这样）；自己选的牌统一在下面那条横幅里看
       const cc = document.createElement('div'); cc.className = 'cc';
-      this.pubs[ci].forEach(c => { const e = cardEl(c, 'xs'); e.classList.add('pub'); cc.appendChild(e); });
-      const mySel = act ? this.hands[0].filter(c => this.sel.has(c.id)) : [];
-      mySel.forEach(c => { const e = cardEl(c, 'xs'); e.classList.add('own'); cc.appendChild(e); });
-      for (let k = cp.pub + mySel.length; k < 5; k++) {
-        const h = document.createElement('div'); h.className = 'card-hole'; cc.appendChild(h);
-      }
-      // 阵营印章浮在框的上方（腾讯原版的样子），不占框内的行
+      if (!cp.pub) { const s2 = document.createElement('div'); s2.className = 'cc-dragon'; s2.textContent = '🐉'; cc.appendChild(s2); }
+      else this.pubs[ci].forEach(c => { const e = cardEl(c, 'xs'); e.classList.add('pub'); cc.appendChild(e); });
       d.innerHTML = '<div class="cn seal c' + ci + '">' + cp.n + '</div>';
       d.appendChild(cc);
       const q = document.createElement('div'); q.className = 'cq';
@@ -207,8 +200,7 @@ class SanguoGame {
     });
     this.mid.appendChild(wrap);
 
-    /* 牌型和倍数做成三个框下面的一条横幅（原版就在这儿），
-       框里再塞就会被挤出去看不见 */
+    /* 三个框下面那条横幅：牌型名 + 组成的 5 张小牌 + ×倍数（照官方 96） */
     const rb = document.createElement('div'); rb.className = 'pick-ribbon';
     if (this.camp >= 0) {
       const need = 5 - SG_CAMPS[this.camp].pub;
@@ -216,15 +208,20 @@ class SanguoGame {
       if (own.length === need) {
         const e = sgEval5(own.concat(this.pubs[this.camp]));
         rb.classList.add('on');
-        rb.innerHTML = '<b class="fx-name">' + e.name + '</b><b class="m">×' + e.mult + '</b>';
+        rb.innerHTML = '<b class="fx-name">' + e.name + '</b>';
+        const mini = document.createElement('span'); mini.className = 'rb-cards';
+        e.cs.slice().sort((x, y) => y.r - x.r).forEach(c => {
+          const el = cardEl(c, 'xs'); el.classList.add('rb-c');
+          if (this.pubs[this.camp].some(p => p.id === c.id)) el.classList.add('pub');
+          mini.appendChild(el);
+        });
+        rb.appendChild(mini);
+        const m = document.createElement('b'); m.className = 'm'; m.textContent = '×' + e.mult + '倍';
+        rb.appendChild(m);
       } else rb.innerHTML = '<span class="need">还需 ' + (need - own.length) + ' 张</span>';
     } else rb.innerHTML = '<span class="need">先选一个阵营</span>';
     this.mid.appendChild(rb);
 
-    const pv = document.createElement('div');
-    pv.style.cssText = 'text-align:center;font-size:11px;margin-top:5px;min-height:16px;color:#ffd7a8';
-    pv.textContent = this.camp < 0 ? '点上方阵营，会自动帮你配好该国最优的牌' : '点手牌可自行替换，选满才能出战';
-    this.mid.appendChild(pv);
     if (this.btnGo) this.btnGo.disabled = !this.canGo();
   }
   canGo() {
@@ -413,7 +410,17 @@ class SanguoGame {
       + (sameType ? '同牌型 ' + sameType + ' 人 → 杀×' + killM : '')
       + (!sameCamp && !sameType ? '名次倍率 32/24/12/4' : '') + '</div>';
     for (let i = 0; i < 5; i++) this.setTag(i, plays[i], rank[i], rd[i], 5);
-    await sleep(700);
+    /* 全部开完之后，第一名整块放大突出一下再收豆（照官方 99 那张，约 1.5 倍） */
+    // rank 是 {座位: 名次} 的对象，不是数组；并列第一取第一个
+    const champ = [0, 1, 2, 3, 4].find(i => rank[i] === 1);
+    if (champ !== undefined) {
+      const sl = this.slots[champ];
+      sl.classList.add('champ');
+      sl.style.zIndex = 9;
+      anim(sl, { scale: [1, 1.62, 1.5] }, { duration: .55, ease: MO ? Motion.backOut : 'ease-out' });
+      if (champ === 0) bigWin(plays[0].ev.name + ' ×' + plays[0].ev.mult);
+    }
+    await sleep(900);
     if (this.c.over) return;
     /* 豆从输家的账户转到赢家的账户，到账时再滚动豆数。
        输赢数字名次牌旁边已经显示了，账户上不再重复冒一次。 */
@@ -427,6 +434,11 @@ class SanguoGame {
     await sleep(ms);
     if (this.c.over) return;
 
+    if (champ !== undefined) {              // 收完豆再缩回去
+      const sl = this.slots[champ];
+      anim(sl, { scale: [1.5, 1] }, { duration: .34, ease: 'ease-out' });
+      setTimeout(() => { sl.classList.remove('champ'); sl.style.zIndex = ''; sl.style.scale = ''; }, 380);
+    }
     /* 打出的牌与公共牌进入弃牌堆，下回合与牌堆洗混 */
     for (let i = 0; i < 5; i++) {
       const own = plays[i].own;
