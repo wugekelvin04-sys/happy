@@ -570,30 +570,30 @@ class BaqueGame {
     this.hus[i]++;
     if (i === 0) bigWin('胡！' + hu.name); else say(this.seats[i], '胡！' + hu.name);
     this.render();
-    const ms = settleBeans(this.anchors, rd);
-    await sleep(ms || 600);
-    if (this.c.over) return;
-    this.roundEnd(i, hu, tags.join(' · '), mult * times, rd);
+    // 先亮牌打标，再飞豆 —— 输赢数字已经在标外面了，账户那边不重复冒
+    await this.roundEnd(i, hu, tags.join(' · '), mult * times, rd);
   }
-  /* 本轮结束：亮出所有人的手牌，点「下一轮」继续 */
-  roundEnd(winner, hu, tagText, mult, rd) {
+  /* 本轮结束：亮出所有人的手牌 + 结算标，飞完豆再给「下一轮」 */
+  async roundEnd(winner, hu, tagText, mult, rd) {
     this.phase = 'over';
     this.c.act.innerHTML = '';
     this.render();
-    /* 亮牌：每家的手牌摊在自己的出牌区 */
+    /* 亮牌：每家的手牌摊在自己的出牌区，上面挂结算标（和三国 / 斗仙同一套） */
     for (let i = 0; i < 4; i++) {
       const sl = this.slots[i]; sl.innerHTML = '';
       sl.style.flexDirection = 'column'; sl.style.gap = '2px';
+      setResultTag(sl, {
+        badge: i === winner ? '胡' : null, rk: 1, first: i === winner,
+        fire: i === winner ? 1 : 0,                       // 只有胡牌的那家烧
+        html: i === winner
+          ? '<b class="fx-name lg">' + hu.name + '</b><span class="pv">' + hu.mult + '番</span>'
+          : '<span style="opacity:.8">未胡</span>',
+        delta: rd[i],
+      });
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;gap:1px;justify-content:center';
       this.hands[i].forEach(c => row.appendChild(cardEl(c, 'tiny')));
       sl.appendChild(row);
-      const tg = document.createElement('div');
-      tg.className = 'reveal-tag' + (i === winner ? ' first' : '');
-      tg.innerHTML = (i === winner ? '<b class="gold-txt">胡</b>' : '<span style="opacity:.8">未胡</span>')
-        + (rd[i] ? '<b class="amt" style="color:' + (rd[i] > 0 ? '#7dffae' : '#ff8272') + '">'
-          + (rd[i] > 0 ? '+' : '') + fmt(rd[i]) + '</b>' : '');
-      sl.appendChild(tg);
     }
     this.center.innerHTML = '';
     const box = document.createElement('div');
@@ -604,6 +604,9 @@ class BaqueGame {
       : '<span class="gold-txt" style="font-size:14px">' + (winner === 0 ? '我' : this.P[winner].name) + ' 胡牌</span>'
       + '<div style="font-size:11px;margin-top:2px">' + tagText + '　总倍数 <b class="gold-txt">×' + mult + '</b></div>';
     this.center.appendChild(box);
+    const ms = settleBeans(this.anchors, rd, null, { labels: false });
+    await sleep(ms || 400);
+    if (this.c.over) return;
     actBtn('下一轮', '', () => { this.roundNo++; this.resetSlots(); this.newDeal(); });
     actBtn('结束牌局', 'grey', () => this.finish());
   }
@@ -627,7 +630,8 @@ class BaqueGame {
 
 GAMES.baque = {
   key: 'baque', name: '百变八雀牌', seats: 4, base: 20, entry: 60000, cap: 20000,
-  start(c) { new BaqueGame(c).run(); },
+  // 实例挂到 window.__g，方便在控制台直接调结算之类的方法排查
+  start(c) { (window.__g = new BaqueGame(c)).run(); },
   rules: '<h2>百变八雀牌</h2>'
     + '<h4>玩法说明</h4><ul>'
     + '<li>使用 <b>84 张</b>扑克：两副去掉大小王和 2/3/4/5（6~A），新增 <b>4 张 8</b>（全场 12 张 8）、'

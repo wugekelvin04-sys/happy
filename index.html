@@ -41,8 +41,12 @@ body{
    安全区也要跟着转：本地的左边其实是屏幕的上边。 */
 body.force-rot #app{inset:auto;left:50%;top:50%;box-sizing:border-box;
   transform-origin:50% 50%;transform:translate(-50%,-50%) rotate(90deg);
-  padding-left:env(safe-area-inset-top);padding-right:env(safe-area-inset-bottom);
-  padding-top:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-left)}
+  padding-left:max(env(safe-area-inset-top),8px);padding-right:max(env(safe-area-inset-bottom),8px);
+  padding-top:max(env(safe-area-inset-right),4px);padding-bottom:max(env(safe-area-inset-left),4px)}
+/* 转过来之后安全区由 #app 统一让位，内层不能再按未旋转的方向留一遍，
+   否则灵动岛那边照样被压住，另一边白留一大条。 */
+body.force-rot{--safe-top:4px;--safe-bot:4px}
+body.force-rot .screen{padding-left:0;padding-right:0}
 .screen{position:absolute;inset:0;display:none;flex-direction:column;
   padding-top:var(--safe-top);padding-bottom:var(--safe-bot);
   padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
@@ -255,8 +259,6 @@ body.land .match-wrap{gap:10px;padding:8px}
 #table.reveal .realm.hot .pw{font-size:15px;font-weight:900;color:var(--gold);min-height:19px;
   text-shadow:0 1px 3px rgba(0,0,0,.85)}
 .realm.cold{opacity:.5}
-.pwr-banner.big{padding:2px 16px;font-size:13px}
-.pwr-banner.big .v{font-size:16px}
 .win-chip{position:absolute;left:50%;top:-9px;transform:translateX(-50%);z-index:8;
   background:linear-gradient(#fff2b8,#ffb32e);color:#5a2f00;font-size:11px;font-weight:900;
   border-radius:999px;padding:1px 9px;white-space:nowrap;pointer-events:none;
@@ -273,16 +275,10 @@ body.land .match-wrap{gap:10px;padding:8px}
 .slot.sm{width:24px;height:35px}
 
 /* 斗仙牌：斗法横幅 / 名次 / 飘豆动画 */
-.pwr-wrap{position:relative;display:flex;justify-content:center;pointer-events:none}
-.pwr-banner{display:inline-flex;align-items:center;gap:4px;padding:1px 14px;font-size:11px;font-weight:800;color:#fff;
-  background:linear-gradient(90deg,rgba(30,90,170,0) 0%,rgba(90,170,255,.95) 30%,rgba(60,140,235,.95) 70%,rgba(30,90,170,0) 100%);
-  clip-path:polygon(0 50%,10px 0,100% 0,calc(100% - 10px) 100%,10px 100%);
-  text-shadow:0 1px 3px #000;animation:pop .25s;white-space:nowrap;
-  box-shadow:0 0 10px rgba(120,200,255,.7)}
-.pwr-banner.win{background:linear-gradient(90deg,rgba(170,100,10,0) 0%,rgba(255,205,90,.98) 30%,rgba(240,150,25,.98) 70%,rgba(170,100,10,0) 100%);
-  color:#4a2400;text-shadow:0 1px 2px rgba(255,255,255,.5);box-shadow:0 0 12px rgba(255,200,80,.85)}
-.pwr-banner .v{color:#ffe38a;font-size:13px;font-weight:900}
-.pwr-banner.win .v{color:#7a2f00}
+/* 斗仙的结算标浮在这一家牌块的正上方，不挤占行内位置 */
+.pwr-wrap{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);margin-bottom:3px;
+  display:flex;flex-direction:column;align-items:center;pointer-events:none;z-index:6}
+.reveal-tag .pv{color:#ffe38a;font-size:15px;font-weight:900;margin-left:2px}
 .rank-badge{width:17px;height:17px;border-radius:50%;font-size:11px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex:none}
 .rank-big{width:34px;height:34px;font-size:21px}
 .reveal-tag{position:relative;display:inline-flex;align-items:center;gap:8px;justify-content:center;
@@ -348,7 +344,7 @@ body.land .match-wrap{gap:10px;padding:8px}
 
 /* ================= 三国牌：阵营 ================= */
 .camps{display:flex;gap:6px;justify-content:center;padding:0 6px}
-.camp{flex:1;max-width:118px;border-radius:12px;padding:5px 4px 6px;text-align:center;
+.camp{flex:0 0 122px;width:122px;min-width:0;border-radius:12px;padding:5px 4px 6px;text-align:center;
   border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.3);transition:transform .14s ease}
 .camp:active{transform:scale(.97)}
 .camp.wei{border-color:#7fb6ff;background:linear-gradient(#2a4f86,#16305a)}
@@ -356,7 +352,13 @@ body.land .match-wrap{gap:10px;padding:8px}
 .camp.wu{border-color:#ffd76a;background:linear-gradient(#8a6a1a,#4d3a0b)}
 .camp.act{border-color:var(--gold);box-shadow:0 0 0 1.5px var(--gold),0 0 20px -4px rgba(255,215,106,.75)}
 .camp .cn{font-size:12px;font-weight:800;letter-spacing:2px}
-.camp .cc{display:flex;gap:2px;justify-content:center;min-height:31px;align-items:center}
+.camp .cc{display:flex;gap:1px;justify-content:center;min-height:29px;align-items:center}
+.camp .cbest{min-height:15px}
+/* 阵营里：自己选的牌白底蓝边带「我」，和米黄的公牌区分开；没配够的画成空位 */
+.card.own{border-color:#5aa7ff;box-shadow:0 0 0 1px rgba(90,167,255,.55),0 1px 3px rgba(0,0,0,.45)}
+.card.own::after{content:'我';position:absolute;left:1px;bottom:0;font-size:8px;color:#1d63b8;font-weight:800;line-height:1}
+.card-hole{width:19px;height:27px;border-radius:4px;flex:none;
+  border:1px dashed rgba(255,255,255,.34);background:rgba(0,0,0,.22)}
 .camp .cq{font-size:10px;opacity:.85;white-space:nowrap}
 .camp .cbest{font-size:10px;margin-top:2px;color:#ffe6bd;line-height:1.3}
 .camp .cbest b{color:#fff}

@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.7.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -543,6 +543,85 @@ function flyBeans(fromEl, toEl, amount) {
   const a = rectOf(fromEl), b = rectOf(toEl);
   pulseRingRect(a, 'lose'); flyBeansRect(a, b, amount, 1, amount); pulseRingRect(b);
 }
+/* ---------------- 结算标（三种玩法共用） ----------------
+   一枚徽章 + 牌型/说明，外面裹一圈火（名次越靠前烧得越旺），
+   输赢豆单独一行放在标的外面 —— 放里面数字一出现会把框撑大。
+   火焰素材 icons/flamering.png 里预先画好了 5 个档位的整圈火。 */
+function fireLevel(fire) {
+  if (!fire || fire <= .04) return 0;
+  return Math.max(1, Math.min(5, 6 - Math.round(fire * 5)));
+}
+/* 名次 → 火势：第 1 名满格，最后一名最弱（n 是参与比较的人数） */
+function rankFire(rank, n) {
+  n = Math.max(1, n || 4);
+  return Math.max(0, Math.min(1, (n - rank + 1) / n));
+}
+function ensureResultTag(host, atTop) {
+  let wrap = host.querySelector(':scope > .tag-wrap');
+  if (wrap) return wrap;
+  wrap = document.createElement('div');
+  wrap.className = 'tag-wrap';
+  wrap.style.visibility = 'hidden';
+  wrap.innerHTML = '<div class="flames"><i style="animation-delay:-'
+    + (Math.random() * 1.4).toFixed(2) + 's"></i></div><div class="reveal-tag"></div>';
+  if (Math.random() < .5) wrap.dataset.mir = '1';      // 左右翻一下，几家的火不至于一模一样
+  const amt = document.createElement('div');
+  amt.className = 'amt-line'; amt.style.visibility = 'hidden';
+  if (atTop) { host.insertBefore(amt, host.firstChild); host.insertBefore(wrap, host.firstChild); }
+  else { host.appendChild(wrap); host.appendChild(amt); }
+  return wrap;
+}
+/* o = { badge, rk, html, fire, delta, first, atTop }
+   badge 为 null 时不画徽章；徽章变了会弹一下（名次被后面的人挤动时用）。 */
+function setResultTag(host, o) {
+  const wrap = ensureResultTag(host, o.atTop);
+  const tag = wrap.querySelector('.reveal-tag');
+  const firstShow = wrap.style.visibility === 'hidden';
+  const key = o.badge == null ? '' : String(o.badge);
+  const bumped = !firstShow && wrap.dataset.badge !== undefined && wrap.dataset.badge !== key;
+  wrap.dataset.badge = key;
+  wrap.style.visibility = 'visible';
+  tag.className = 'reveal-tag' + (o.first ? ' first' : '');
+  tag.innerHTML = (o.badge == null ? ''
+    : '<span class="rank-badge rank-big rk' + (o.rk || Math.min(4, +o.badge || 1)) + '">' + o.badge + '</span>')
+    + (o.html || '');
+  const lv = fireLevel(o.fire);
+  const fl = wrap.querySelector('.flames');
+  fl.className = 'flames' + (lv ? ' lv' + lv : '') + (wrap.dataset.mir ? ' mir' : '');
+  fl.style.display = lv ? '' : 'none';
+  const amt = wrap.parentNode.querySelector(':scope > .amt-line');
+  if (amt) {
+    if (o.delta) {
+      const isNew = amt.style.visibility === 'hidden';
+      amt.className = 'amt-line ' + (o.delta > 0 ? 'up' : 'dn');
+      amt.style.visibility = 'visible';
+      amt.textContent = (o.delta > 0 ? '+' : '') + fmt(o.delta);
+      if (isNew) anim(amt, { opacity: [0, 1], scale: [.5, 1.25, 1] },
+        { duration: .5, ease: MO ? Motion.backOut : 'ease-out' });
+    } else { amt.style.visibility = 'hidden'; amt.textContent = ''; }
+  }
+  if (firstShow) anim(wrap, { opacity: [0, 1], scale: [.6, 1] },
+    { duration: .34, ease: MO ? Motion.backOut : 'ease-out' });
+  else if (bumped) {
+    anim(wrap, { scale: [1, 1.22, 1] }, { duration: .42, ease: 'ease-out' });
+    const b = tag.querySelector('.rank-badge');
+    if (b) anim(b, { rotate: [0, -14, 10, 0], scale: [1, 1.35, 1] }, { duration: .5, ease: 'ease-out' });
+  }
+  return wrap;
+}
+function clearResultTag(host) {
+  if (!host) return;
+  const w = host.querySelector(':scope > .tag-wrap'); if (w) w.remove();
+  const a = host.querySelector(':scope > .amt-line'); if (a) a.remove();
+}
+/* 并列同名次：cmp(a,b) > 0 表示 a 强 */
+function rankList(idx, cmp) {
+  const ord = idx.slice().sort((a, b) => cmp(b, a));
+  const rk = {}; let cur = 1;
+  ord.forEach((p, k) => { if (k > 0 && cmp(p, ord[k - 1]) !== 0) cur = k + 1; rk[p] = cur; });
+  return rk;
+}
+
 /* 结算演示：豆从输家的「账户」飞到赢家的「账户」，分三步走清楚
    1) 输家亮红圈 + 冒 −N          （看清豆从谁那儿出去）
    2) 稍等一下再发豆，慢慢飞过去   （看清路线）

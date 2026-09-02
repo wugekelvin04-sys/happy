@@ -369,16 +369,18 @@ class DouxianGame {
     });
   }
   /* ---------- 结算 ---------- */
-  banner(i, txt, val, rankIdx, big) {
-    let host = this.slots[i].querySelector('.pwr-wrap');
-    if (!host) { host = document.createElement('div'); host.className = 'pwr-wrap'; this.slots[i].insertBefore(host, this.slots[i].firstChild); }
-    if (!host) return;
-    host.innerHTML = '';
-    const d = document.createElement('div');
-    d.className = 'pwr-banner' + (rankIdx === 0 ? ' win' : '') + (big ? ' big' : '');
-    d.innerHTML = '<span>' + txt + '</span><span>🔥</span><span class="v">' + val + '</span>'
-      + '<span class="rank-badge rk' + (rankIdx + 1) + '">' + (rankIdx + 1) + '</span>';
-    host.appendChild(d);
+  /* 这一界的结算标：名次 + 牌型 + 灵力值，外面一圈火，输赢豆单独一行。
+     和三国牌用的是同一套（core.js 里的 setResultTag）。 */
+  banner(i, txt, val, rank, delta) {
+    const sl = this.slots[i];
+    if (getComputedStyle(sl).position === 'static') sl.style.position = 'relative';
+    let host = sl.querySelector('.pwr-wrap');
+    if (!host) { host = document.createElement('div'); host.className = 'pwr-wrap'; sl.appendChild(host); }
+    setResultTag(host, {
+      badge: rank, first: rank === 1, fire: rankFire(rank, 4),
+      html: '<b class="fx-name lg">' + txt + '</b><span class="pv">' + val + '</span>',
+      delta: delta,
+    });
   }
   /* 这一界赢豆的玩家弹「胜」标（可能同时有 2 人赢） */
   async winFx(rd) {
@@ -393,14 +395,14 @@ class DouxianGame {
       host.appendChild(chip);
       anim(chip, { scale: [0, 1.35, 1], opacity: [0, 1, 1] },
         { duration: .42, ease: MO ? Motion.backOut : 'ease-out' });
-      const bn = host.querySelector('.pwr-banner');
+      const bn = host.querySelector('.reveal-tag');
       if (bn) anim(bn, { scale: [1, 1.14, 1] }, { duration: .45, ease: 'ease-out' });
       setTimeout(() => chip.remove(), 1600);
     });
     await sleep(520);
   }
   clearBanners() {
-    for (let i = 0; i < 4; i++) { const h = this.slots[i].querySelector('.pwr-wrap'); if (h) h.innerHTML = ''; }
+    for (let i = 0; i < 4; i++) clearResultTag(this.slots[i].querySelector('.pwr-wrap'));
   }
   beanAnchor(i) { return this.anchors[i]; }
   async resolve() {
@@ -417,8 +419,8 @@ class DouxianGame {
       this.tip.innerHTML = '<div class="gold-txt" style="font-size:15px;letter-spacing:3px">' + DX_ZONES[z].n + '界斗法</div>'
         + '<div class="zone-line">' + DX_ZONES[z].n + '界：' + DX_ORDER[z].map((n, k) => k === 0 ? '<b>' + n + '</b>' : n).join(' &gt; ') + '</div>';
       /* 名次 + 横幅 */
-      const ord = [0, 1, 2, 3].slice().sort((a, b) => pw[b][zi].p - pw[a][zi].p);
-      ord.forEach((pi, k) => this.banner(pi, pw[pi][zi].n, pw[pi][zi].p, k, true));
+      const rk = rankList([0, 1, 2, 3], (a, b) => pw[a][zi].p - pw[b][zi].p);   // 灵力相同 → 并列
+      for (let pi = 0; pi < 4; pi++) this.banner(pi, pw[pi][zi].n, pw[pi][zi].p, rk[pi], 0);
       await sleep(1400);
       if (this.c.over) return;
       /* 两两结算 */
@@ -431,6 +433,8 @@ class DouxianGame {
           this.P[l].beans + this.delta[l] + total[l] + rd[l], this.c.game.cap);
         rd[w] += amt; rd[l] -= amt;
       }
+      /* 输赢豆写到各自的标外面，账户那边就不用再重复冒一次了 */
+      for (let pi = 0; pi < 4; pi++) this.banner(pi, pw[pi][zi].n, pw[pi][zi].p, rk[pi], rd[pi]);
       /* 胜利动画：这一界赢豆的每一家都弹一个「胜」（可能不止一人） */
       await this.winFx(rd);
       if (this.c.over) return;
@@ -442,7 +446,7 @@ class DouxianGame {
           animNumber(el, this.P[i].beans + this.delta[i] + before[i],
             this.P[i].beans + this.delta[i] + total[i], 900);
         }
-      });
+      }, { labels: false });
       await sleep(ms);
       if (this.c.over) return;
       this.clearBanners();
@@ -473,13 +477,20 @@ class DouxianGame {
         + '<div class="zone-line">' + sweepWin.map(i => i === 0 ? '我' : this.P[i].name).join('、') + ' 三界灵力全面压制，额外结算一次</div>';
       const before = total.slice();
       for (let i = 0; i < 4; i++) total[i] += sd[i];
+      /* 全胜也把数字打在各家的标上 */
+      const swRk = rankList([0, 1, 2, 3], (a, b) => sd[a] - sd[b]);
+      for (let pi = 0; pi < 4; pi++) if (sd[pi]) setResultTag(this.slots[pi], {
+        badge: null, fire: sd[pi] > 0 ? rankFire(swRk[pi], 4) : 0,
+        html: '<b class="fx-name lg">' + (sd[pi] > 0 ? '全胜' : '全负') + '</b>',
+        first: sd[pi] > 0, delta: sd[pi], atTop: true,
+      });
       const ms2 = settleBeans(this.anchors, sd, () => {
         for (let i = 0; i < 4; i++) {
           const el = i === 0 ? $('#tMyBeans') : this.seats[i].querySelector('.bn');
           animNumber(el, this.P[i].beans + this.delta[i] + before[i],
             this.P[i].beans + this.delta[i] + total[i], 900);
         }
-      });
+      }, { labels: false });
       await sleep(ms2);
       if (this.c.over) return;
     }
@@ -550,7 +561,8 @@ class DouxianGame {
 
 GAMES.douxian = {
   key: 'douxian', name: '斗仙牌', seats: 4, base: 150, entry: 80000, cap: 20000,
-  start(c) { new DouxianGame(c).run(); },
+  // 实例挂到 window.__g，方便在控制台直接调结算之类的方法排查
+  start(c) { (window.__g = new DouxianGame(c)).run(); },
   rules: '<h2>斗仙牌</h2>'
     + '<h4>基础设定 · 三界修仙场</h4><ul>'
     + '<li>1 副去掉大小王的扑克（<b>52 张</b>），<b>4 名玩家</b>独立对决，分 <b>3 个区域</b>出牌，共进行 <b>4 回合</b>。</li>'

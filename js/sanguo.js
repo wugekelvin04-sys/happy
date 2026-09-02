@@ -183,9 +183,15 @@ class SanguoGame {
       const act = this.camp === ci;
       const d = document.createElement('div');
       d.className = 'camp ' + cp.cls + (act ? ' act' : '');
+      /* 公牌（米黄，带「公」）+ 自己已选的牌（白底蓝边，带「我」），凑成完整 5 张，
+         剩下没配够的画成空位，三国都是 5 格看着一样宽。 */
       const cc = document.createElement('div'); cc.className = 'cc';
-      if (cp.pub === 0) { const s2 = document.createElement('div'); s2.style.cssText = 'font-size:19px'; s2.textContent = '🐉'; cc.appendChild(s2); }
-      else this.pubs[ci].forEach(c => { const e = cardEl(c, 'tiny'); e.classList.add('pub'); cc.appendChild(e); });
+      this.pubs[ci].forEach(c => { const e = cardEl(c, 'xs'); e.classList.add('pub'); cc.appendChild(e); });
+      const mySel = act ? this.hands[0].filter(c => this.sel.has(c.id)) : [];
+      mySel.forEach(c => { const e = cardEl(c, 'xs'); e.classList.add('own'); cc.appendChild(e); });
+      for (let k = cp.pub + mySel.length; k < 5; k++) {
+        const h = document.createElement('div'); h.className = 'card-hole'; cc.appendChild(h);
+      }
       d.innerHTML = '<div class="cn">' + cp.n + '</div>';
       d.appendChild(cc);
       const q = document.createElement('div'); q.className = 'cq';
@@ -288,18 +294,7 @@ class SanguoGame {
       bk.style.height = Math.round((big ? 50 : 40) * 1.44) + 'px';
       f.appendChild(bk); row.appendChild(f);
     }
-    const wrap = document.createElement('div');
-    wrap.className = 'tag-wrap'; wrap.style.visibility = 'hidden';
-    // 整圈火焰：一个 <i> 播序列图，档位靠 .lvN 选行
-    wrap.innerHTML = '<div class="flames"><i style="animation-delay:-'
-      + (Math.random() * 1.4).toFixed(2) + 's"></i></div>';
-    const tag = document.createElement('div');
-    tag.className = 'reveal-tag'; tag.textContent = '—';
-    wrap.appendChild(tag);
-    sl.appendChild(wrap);         // 名次牌型标在牌的上方
-    const amt = document.createElement('div');
-    amt.className = 'amt-line'; amt.style.visibility = 'hidden'; amt.textContent = '';
-    sl.appendChild(amt);          // 输赢豆单独一行，放在名次牌外面
+    ensureResultTag(sl, false);   // 名次牌型标 + 输赢豆行，都在牌的上方
     sl.appendChild(row);
     return row;
   }
@@ -321,55 +316,16 @@ class SanguoGame {
     });
     await sleep(cells.length * S + D * 2 + 40);
   }
-  /* 沿名次牌外围生成一圈火舌：底边一排 + 两端各一簇，越靠前的名次越高越密 */
-  /* 火势档位：1 最旺、5 最弱，0 表示不烧。素材里 5 个档位是整圈画好的。 */
-  fireLevel(fire) {
-    if (fire <= .04) return 0;
-    return Math.max(1, Math.min(5, 6 - Math.round(fire * 5)));
-  }
-  /* 名次徽章 + 牌型（+ 输赢豆）。名次越靠前烧得越旺，
+  /* 名次徽章 + 阵营 + 牌型（+ 输赢豆）。名次越靠前烧得越旺，
      强度按「已开牌人数里的倒排位置」算：第 1 名满格，最后一名最弱。 */
   setTag(i, play, rank, delta, revealedN) {
-    const wrap = this.slots[i].querySelector('.tag-wrap');
-    if (!wrap) return;
-    const tag = wrap.querySelector('.reveal-tag');
-    const firstShow = wrap.style.visibility === 'hidden';
-    const changed = !firstShow && this.shownRank && this.shownRank[i] !== rank;
-    this.shownRank = this.shownRank || {};
-    this.shownRank[i] = rank;
-    wrap.style.visibility = 'visible';
-    tag.className = 'reveal-tag' + (rank === 1 ? ' first' : '');
-    const n = Math.max(1, revealedN || 5);
-    const fire = Math.max(0, Math.min(1, (n - rank + 1) / n));      // 倒排 → 0~1
-    const lv = this.fireLevel(fire);
-    const fl = wrap.querySelector('.flames');
-    // 每家随机左右翻一下，五个牌的火不至于一模一样
-    this.fireMir = this.fireMir || {};
-    if (this.fireMir[i] === undefined) this.fireMir[i] = Math.random() < .5;
-    fl.className = 'flames' + (lv ? ' lv' + lv : '') + (this.fireMir[i] ? ' mir' : '');
-    fl.style.display = lv ? '' : 'none';
-    tag.innerHTML = '<span class="rank-badge rank-big rk' + Math.min(4, rank) + '">' + rank + '</span>'
-      + '<span class="cn2">' + SG_CAMPS[play.camp].n + '</span>'
-      + '<b class="fx-name lg">' + play.ev.name + '</b>';
-    const amt = this.slots[i].querySelector('.amt-line');
-    if (amt) {
-      if (delta) {
-        const isNew = amt.style.visibility === 'hidden';
-        amt.className = 'amt-line ' + (delta > 0 ? 'up' : 'dn');
-        amt.style.visibility = 'visible';
-        amt.textContent = (delta > 0 ? '+' : '') + fmt(delta);
-        if (isNew) anim(amt, { opacity: [0, 1], scale: [.5, 1.25, 1] },
-          { duration: .5, ease: MO ? Motion.backOut : 'ease-out' });
-      } else { amt.style.visibility = 'hidden'; amt.textContent = ''; }
-    }
-    if (firstShow) anim(wrap, { opacity: [0, 1], scale: [.6, 1] },
-      { duration: .34, ease: MO ? Motion.backOut : 'ease-out' });
-    else if (changed) {                       // 名次被后面的人挤动了 → 弹一下提示
-      anim(wrap, { scale: [1, 1.22, 1] }, { duration: .42, ease: 'ease-out' });
-      const badge = tag.querySelector('.rank-badge');
-      if (badge) anim(badge, { rotate: [0, -14, 10, 0], scale: [1, 1.35, 1] },
-        { duration: .5, ease: 'ease-out' });
-    }
+    setResultTag(this.slots[i], {
+      badge: rank, first: rank === 1,
+      fire: rankFire(rank, revealedN || 5),
+      html: '<span class="cn2">' + SG_CAMPS[play.camp].n + '</span>'
+        + '<b class="fx-name lg">' + play.ev.name + '</b>',
+      delta: delta,
+    });
   }
   /* 已开牌的玩家之间重新排名（并列同名次） */
   rankOf(revealed, plays) {
@@ -485,7 +441,8 @@ class SanguoGame {
 
 GAMES.sanguo = {
   key: 'sanguo', name: '三国牌', seats: 5, base: 10, entry: 50000, cap: 20000,
-  start(c) { new SanguoGame(c).run(); },
+  // 实例挂到 window.__g，方便在控制台直接调结算之类的方法排查
+  start(c) { (window.__g = new SanguoGame(c)).run(); },
   rules: '<h2>三国牌</h2>'
     + '<h4>基础规则</h4><ul>'
     + '<li>一副扑克去掉大小王共 <b>52 张</b>，每局 <b>5 人</b>参与各自为战，进行 <b>4 轮</b>出牌比拼。</li>'
