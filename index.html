@@ -143,10 +143,22 @@ body.land .match-wrap{gap:10px;padding:8px}
 .seat .nm{font-size:12px;max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ================= 牌桌通用（横屏围桌） ================= */
-.t-top{display:flex;align-items:center;gap:6px;padding:3px 8px;z-index:6;min-height:32px}
-.t-body{flex:1;position:relative;overflow:hidden}
-.t-bottom{position:relative;z-index:6;padding:0}
-.actbar{display:flex;gap:8px;justify-content:center;align-items:center;min-height:36px;padding:1px 8px;flex-wrap:wrap}
+/* 牌桌改成「整帧画布」：t-body 铺满整个 screen，顶栏、手牌、按钮浮在它上面。
+   这样各元素的百分比坐标才能和官方截图 1:1 对上 —— 原来 t-body 只有 235px 高
+   （手牌和按钮各占一行），写 top:58% 实际落在 138px 处，整体偏上一大截。 */
+.t-top{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:6px;
+  padding:3px 8px;z-index:8;min-height:32px}
+.t-body{position:absolute;inset:0;overflow:hidden;z-index:1}
+.t-bottom{position:absolute;left:0;right:0;bottom:0;z-index:6;padding:0}
+/* 操作按钮独立浮层；斗仙照官方放在牌桌正中（#89：y≈38%） */
+/* 操作按钮独立浮层，浮在手牌上方（官方三个玩法都是这样，不是压在手牌下面）；
+   斗仙照官方放在牌桌正中（#89：y≈38%）。 */
+.actbar{position:absolute;left:0;right:0;bottom:86px;z-index:7;
+  display:flex;gap:8px;justify-content:center;align-items:center;min-height:36px;padding:1px 8px;flex-wrap:wrap}
+#table.th-douxian .actbar{bottom:auto;top:38%}
+#table.th-baque .actbar{bottom:100px}
+/* 官方手牌区 y 77.9%~100%（440 高时约 97px） */
+#table.th-douxian .hand{min-height:97px}
 .me-bar{position:absolute;left:6px;bottom:2px;display:flex;align-items:center;gap:6px;font-size:11px;z-index:7}
 
 /* 座位牌：照官方截图做成竖版 —— 头像在上、昵称和豆数在下，整体约 56px 宽。
@@ -268,11 +280,11 @@ body.land .match-wrap{gap:10px;padding:8px}
 
 /* ================= 斗仙牌：三界区域 ================= */
 .realms{display:flex;gap:4px;justify-content:center;align-items:flex-start}
-.realm{border-radius:10px;padding:3px 4px 4px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13)}
+.realm{border-radius:10px;padding:2px 3px 3px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13)}
 .realm.sealed{opacity:.45;pointer-events:none}
 .realm .seal-txt{font-size:9px;opacity:.8;margin-left:3px}
 .realm.act{border-color:var(--gold);background:rgba(255,215,106,.2);box-shadow:0 0 0 1px var(--gold),0 0 16px -4px rgba(255,215,106,.6)}
-.realm .rn{font-size:10px;text-align:center;line-height:1.3;opacity:.95}
+.realm .rn{font-size:9px;text-align:center;line-height:1.15;opacity:.95}
 .realm .rs{display:flex;gap:2px}
 /* 斗法阶段：牌放大 */
 #table.reveal .center-zone{width:352px}
@@ -283,7 +295,7 @@ body.land .match-wrap{gap:10px;padding:8px}
 /* 斗仙的中央提示往下挪一点，给上家的牌块和它下面的输赢豆让位 */
 #table.th-douxian .center-zone{top:47%}
 /* 座位牌改成竖版之后变高了，八雀的中央托盘往下让一点，别被上家的牌压住 */
-#table.th-baque .center-zone{top:61%}
+#table.th-baque .center-zone{top:47%}
 /* 斗法：正在比拼的那一界高亮放大 */
 .realm.hot{background:rgba(255,215,106,.2);border-color:var(--gold);
   box-shadow:0 0 0 1px rgba(255,215,106,.7),0 0 16px rgba(255,215,106,.45)}
@@ -299,10 +311,13 @@ body.land .match-wrap{gap:10px;padding:8px}
 #table.reveal .realm .pw{font-size:12px;min-height:15px}
 .realm .pw{font-size:10px;text-align:center;color:var(--gold);font-weight:800;min-height:13px}
 .pw-prev{color:#8fd6ff;text-shadow:0 0 8px rgba(120,200,255,.6)}
-.mini-realms{display:flex;gap:3px;flex-wrap:wrap;max-width:128px;justify-content:flex-end}
+/* 别家的区域：凡+灵 一行、仙 第二行（官方就是两行，12.1% 宽 × 18.8% 高） */
+.mini-realms{display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end}
 
 .mini-realms.lft{justify-content:flex-start}
-.mini-realms .realm{padding:1px 2px 2px}
+/* 官方别家的区域是纯灰格，不写界名；带界名会让每行高出 12px，两行就顶到自己的牌上 */
+.mini-realms .realm{padding:2px}
+.mini-realms .rn{display:none}
 .mini-realms .rn{font-size:9px;line-height:1.1}
 .mini-realms .rs{gap:1px}
 .slot.sm{width:24px;height:35px}
@@ -568,8 +583,8 @@ table.rt td:last-child{text-align:right;color:var(--gold);font-weight:700;white-
     <div class="t-bottom">
       <div id="myZone"></div>
       <div class="hand" id="myHand"></div>
-      <div class="actbar" id="actBar"></div>
     </div>
+    <div class="actbar" id="actBar"></div>
   </section>
 
   <div class="mask" id="mask"><div class="modal" id="modal"></div></div>

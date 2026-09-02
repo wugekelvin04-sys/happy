@@ -140,13 +140,13 @@ class DouxianGame {
     /* 坐标全部照 pp22 官方截图量出来再换算（原图 2781×1280，与本牌桌同宽高比）：
        头像 5%/89.5%/35%，牌块 14.5%/73%/45.5%，自己的三界在 23.5%~75% × 58.6% 处。 */
     const CH = [null,
-      { chip: { right: '4%', top: '28.8%' } },                // 右家
-      { chip: { left: '35%', top: '6.5%' } },                 // 上家
-      { chip: { left: '5%', top: '28.8%' } }];                // 左家
-    const ZP = [{ left: '50%', top: '58.6%', tx: -50 },
-      { right: '15.5%', top: '29.8%' },
-      { left: '45.5%', top: '5.9%' },
-      { left: '14.5%', top: '29.8%' }];
+      { chip: { right: '5.2%', top: '31.4%' } },              // 右家
+      { chip: { left: '35.6%', top: '5.8%' } },               // 上家
+      { chip: { left: '4.9%', top: '30.1%' } }];              // 左家
+    const ZP = [{ left: '50%', top: '56.7%', tx: -50 },
+      { right: '14.5%', top: '29.4%' },
+      { left: '46.1%', top: '5.5%' },
+      { left: '14.6%', top: '29.1%' }];
     for (let i = 1; i < 4; i++) {
       const el = mkSeat(this.P[i], CH[i], '<span class="hs"></span>');
       b.appendChild(el); this.seats[i] = el;
@@ -181,7 +181,10 @@ class DouxianGame {
     /* 斗法阶段把牌放大，正在比拼的那一界再大一号 */
     // 尺寸照截图：自始至终不变，正在比拼的那界只加金框不放大 ——
     // 一放大块就变宽，必然撞上旁边的区域和别家的牌
-    const cw = mini ? 20 : 42;
+    // 官方一格：自己 144/2781 = 5.18% 的桌宽，别家 72/2781 = 2.59%。
+    // 按桌宽实时换算，换设备也对得上；写死 px 只在某一个尺寸下准。
+    const TW = (this.c.body && this.c.body.clientWidth) || 852;
+    const cw = Math.round(TW * (mini ? .0259 : .0518));
     for (let i = 0; i < size; i++) {
       if (cards[i]) {
         if (reveal === false) {
@@ -280,9 +283,12 @@ class DouxianGame {
       // 布阵阶段也把别家的区域画成灰格（照原版），只是牌都盖着
       const mr = document.createElement('div');
       mr.className = 'mini-realms' + (i === 3 ? ' lft' : '');
+      // 官方别家区域整块占桌宽 12.1%，凡+灵 一行、仙 折到第二行
+      mr.style.maxWidth = Math.round(((this.c.body && this.c.body.clientWidth) || 852) * .121) + 'px';
       for (let z = 0; z < 3; z++) {
-        if (this.round === 1 && z === 2) continue;
-        mr.appendChild(this.realmEl(i, z, true, showOthers));
+        const el = this.realmEl(i, z, true, showOthers);
+        if (this.round === 1 && z === 2) el.classList.add('sealed');   // 官方也画出来，占第二行
+        mr.appendChild(el);
       }
       box.appendChild(mr);
       this.seats[i].querySelector('.bn').textContent = fmt(Math.max(0, this.P[i].beans + this.delta[i]));
