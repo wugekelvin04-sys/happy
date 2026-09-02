@@ -268,10 +268,20 @@ class BaqueGame {
     const pa = document.createElement('div'); pa.className = 'pool-area';
     if (!this.pool.length) { const em = document.createElement('span'); em.className = 'pool-empty'; em.textContent = '底池暂无牌'; pa.appendChild(em); }
     this.pool.forEach(d => {
+      const cell = document.createElement('div'); cell.className = 'pool-cell';
       const e = cardEl(d.c, '');
       if (pickable) { e.classList.add('hot'); e.onclick = () => this.takeFromPool(d); }
       else e.style.filter = 'brightness(.85)';
-      pa.appendChild(e);
+      cell.appendChild(e);
+      // 照原版：拿走这张能胡就在牌底下标「胡 ×番数」
+      const hu = bqHu(this.hands[0].concat([d.c]));
+      if (hu) {
+        const t = document.createElement('div'); t.className = 'hu-tag';
+        t.textContent = '胡 ×' + (hu.mult * (hu.hard ? 2 : 1));
+        cell.appendChild(t);
+        e.classList.add('can-hu');
+      }
+      pa.appendChild(cell);
     });
     poolWrap.appendChild(pa);
     const cap2 = document.createElement('div'); cap2.className = 'deck-cap';
@@ -286,9 +296,11 @@ class BaqueGame {
       if (last && last.by === i && !last.dead) this.slots[i].appendChild(cardEl(last.c, 'tiny'));
     }
     const hd = this.c.hand; hd.innerHTML = '';
-    fitHand(hd, this.hands[0].length, 52);
+    fitHand(hd, this.hands[0].length, 62);
     this.hands[0].forEach(c => {
-      const e = cardEl(c); e.style.setProperty('--cw', '52px');
+      const e = cardEl(c); e.style.setProperty('--cw', '62px');
+      const sc = document.createElement('span'); sc.className = 'sc-tag';
+      sc.textContent = bqCardScore(c) + '分'; e.appendChild(sc);
       if (this.sel.has(c.id)) e.classList.add('sel');
       if (this.drawn === c.id) e.style.marginLeft = '10px';
       e.onclick = () => {
@@ -341,7 +353,7 @@ class BaqueGame {
     if (i === 0) { this.drawn = c.id; this.sel = new Set(); }
     this.phase = 'play'; this.render();
     if (fromDeck) {
-      if (i === 0) await flyIntoHand(c, fromDeck, this.c.hand, 52);
+      if (i === 0) await flyIntoHand(c, fromDeck, this.c.hand, 62);
       else flyCards([c], fromDeck, rectOf(this.seats[i]), { cls: 'tiny', step: 0, back: true });
     }
     await this.afterGet(i, { zimo: true, dihu: this.turns[i] === 1, haidi: lastCard });
@@ -354,7 +366,7 @@ class BaqueGame {
     this.turns[i]++;
     if (i === 0) { this.drawn = d.c.id; this.sel = new Set(); }
     this.phase = 'play'; this.render();
-    if (i === 0) await flyIntoHand(d.c, from, this.c.hand, 52);
+    if (i === 0) await flyIntoHand(d.c, from, this.c.hand, 62);
     else flyCards([d.c], from, rectOf(this.seats[i]), { cls: 'tiny', step: 0 });
     if (!silent && i !== 0) say(this.seats[i], '捡牌！');
     await this.afterGet(i, { zimo: false, dihu: false, haidi: false });
@@ -525,7 +537,7 @@ class BaqueGame {
     this.wall = this.wall.filter(x => x !== choice);
     this.hands[i].push(choice); this.hands[i].sort(bqSort);
     this.render();
-    if (i === 0) { await flyIntoHand(choice, from, this.c.hand, 52); toast('机会牌换到 ' + (choice.k ? (choice.k === 1 ? '癞子' : '机会牌') : RANK_CH[choice.r] + SUIT_CH[choice.s]), 1100); }
+    if (i === 0) { await flyIntoHand(choice, from, this.c.hand, 62); toast('机会牌换到 ' + (choice.k ? (choice.k === 1 ? '癞子' : '机会牌') : RANK_CH[choice.r] + SUIT_CH[choice.s]), 1100); }
     else flyCards([choice], from, rectOf(this.seats[i]), { cls: 'tiny', step: 0, back: true });
   }
   askHu(hu) {

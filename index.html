@@ -211,9 +211,13 @@ body.land .match-wrap{gap:10px;padding:8px}
 .flipper{position:relative;transform-style:preserve-3d;backface-visibility:hidden;will-change:transform}
 .reveal-row{display:flex;gap:2px;justify-content:center}
 /* 八雀牌中央：牌堆 + 待选底池 */
-.deck-area{display:flex;align-items:center;gap:14px;justify-content:center}
+/* 牌堆 + 底池装在一条圆角托盘里（照腾讯原版） */
+.deck-area{display:flex;align-items:center;gap:14px;justify-content:center;
+  padding:7px 16px;border-radius:999px;
+  background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
 .deck-pile{position:relative;cursor:default}
-.deck-pile .cardback-count{width:46px;height:66px;font-size:0;border-width:2px}
+.deck-pile .cardback-count{width:54px;height:78px;font-size:0;border-width:2px}
 .deck-pile.hot{cursor:pointer}
 .deck-pile.hot .cardback-count{box-shadow:0 0 0 3px var(--gold),0 0 16px rgba(255,215,106,.85)}
 .deck-pile .num{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:15px;font-weight:900;
@@ -223,6 +227,18 @@ body.land .match-wrap{gap:10px;padding:8px}
 .pool-area .card{--cw:46px;transition:transform .12s}
 .pool-area .card.hot{cursor:pointer;box-shadow:0 0 0 2.5px var(--gold),0 0 14px rgba(255,215,106,.8)}
 .pool-area .card.hot:active{transform:translateY(-4px)}
+ /* 底池：每张牌底下标「胡 ×番数」（照腾讯原版），能胡的牌加金框 */
+.pool-cell{display:flex;flex-direction:column;align-items:center;gap:2px}
+.pool-area .card{--cw:54px}
+.hu-tag{font-size:10px;font-weight:800;color:#fff;line-height:1;padding:1px 5px;border-radius:4px;
+  background:linear-gradient(#e0483a,#a02216);box-shadow:0 1px 3px rgba(0,0,0,.5);white-space:nowrap}
+.card.can-hu{box-shadow:0 0 0 2px var(--gold),0 0 12px -2px rgba(255,215,106,.9)}
+/* 手牌角标：这张牌的分数（结算按牌分算） */
+.sc-tag{position:absolute;left:calc(var(--cw,46px)*.42);top:1px;z-index:2;
+  font-size:calc(var(--cw,46px)*.185);font-weight:800;line-height:1.1;padding:1px 3px;border-radius:3px;
+  white-space:nowrap;color:#fff;background:linear-gradient(#f0685a,#c2392a);
+  box-shadow:0 1px 2px rgba(0,0,0,.4)}
+.card.wild .sc-tag{background:linear-gradient(#f0a83a,#c07a12)}
 .pool-empty{font-size:11px;color:#9db8dd}
 /* 开牌阶段隐藏手牌区，把舞台让给中间的结算动画 */
 #table.reveal .t-bottom{display:none}
@@ -255,6 +271,8 @@ body.land .match-wrap{gap:10px;padding:8px}
 #table.th-sanguo.reveal .me-bar{left:50%;transform:translateX(-50%);bottom:5px}
 #table.th-sanguo.reveal .center-zone{width:310px;top:44%}
 #table.th-sanguo.reveal .center-zone > div{font-size:15px !important;padding:7px 18px !important}
+/* 斗仙的中央提示往下挪一点，给上家的牌块和它下面的输赢豆让位 */
+#table.th-douxian .center-zone{top:56%}
 /* 斗法：正在比拼的那一界高亮放大 */
 .realm.hot{background:rgba(255,215,106,.2);border-color:var(--gold);
   box-shadow:0 0 0 1px rgba(255,215,106,.7),0 0 16px rgba(255,215,106,.45)}
@@ -351,11 +369,32 @@ body.land .match-wrap{gap:10px;padding:8px}
 /* 出牌区里的输赢豆改成压在自己牌行的下沿，绝对定位、不占一行 ——
    占一行会在牌型标和牌之间留出空隙把牌顶下去；放到牌的左右侧则五家会抢
    同一条空档（中间还有结算框），横向根本排不开。压在自己牌上各归各的，不会打架。 */
-.play-slot > .amt-line{position:absolute;left:50%;transform:translateX(-50%);bottom:-2px;
+.play-slot > .amt-line{position:absolute;left:50%;transform:translateX(-50%);bottom:2px;
   min-height:0;margin:0;z-index:7;pointer-events:none;
-  -webkit-text-stroke:1.2px rgba(0,0,0,.75);text-shadow:0 2px 8px rgba(0,0,0,1)}
+  font-size:30px;letter-spacing:1px;opacity:.92;
+  -webkit-text-stroke:2px rgba(0,0,0,.8);text-shadow:0 3px 10px rgba(0,0,0,1)}
 .amt-line.up{color:#7dffae}
 .amt-line.dn{color:#ff8272}
+/* 名次做成牌型条外侧的大圆徽章（腾讯原版）：靠外的一侧压在条头上 */
+.rank-coin{position:absolute;top:50%;transform:translateY(-50%);z-index:4;
+  width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:19px;font-weight:900;line-height:1;
+  font-family:"STKaiti","Kaiti SC","KaiTi",serif;
+  border:1.5px solid rgba(0,0,0,.4);box-shadow:0 2px 6px rgba(0,0,0,.6)}
+.rank-coin.l{left:-13px} .rank-coin.r{right:-13px}
+.reveal-tag.coin-l{padding-left:22px} .reveal-tag.coin-r{padding-right:22px}
+.tag-wrap.sm .rank-coin{width:22px;height:22px;font-size:14px}
+.tag-wrap.sm .rank-coin.l{left:-9px} .tag-wrap.sm .rank-coin.r{right:-9px}
+.tag-wrap.sm .reveal-tag.coin-l{padding-left:16px}
+.tag-wrap.sm .reveal-tag.coin-r{padding-right:16px}
+/* 阵营做成条内的小盾牌：魏蓝、蜀红、吴绿（跟原版配色） */
+.camp-tag{display:inline-flex;align-items:center;justify-content:center;
+  min-width:21px;height:21px;padding:0 3px;border-radius:4px;
+  font-size:13px;font-weight:800;color:#fff;line-height:1;flex:none;
+  box-shadow:inset 0 -1px 0 rgba(0,0,0,.3)}
+.camp-tag.c0{background:linear-gradient(#3f7fe0,#23539f)}
+.camp-tag.c1{background:linear-gradient(#d0483a,#8f2418)}
+.camp-tag.c2{background:linear-gradient(#3f9e63,#1f6b3d)}
 .rk1{background:linear-gradient(#ffe58a,#e0a12c);color:#5a2f00;box-shadow:0 0 8px rgba(255,200,80,.9)}
 .rk2{background:linear-gradient(#c8dcff,#5a86c8);color:#0d2140}
 .rk3{background:linear-gradient(#ffcaa0,#d07a2a);color:#3a1a00}
@@ -378,9 +417,26 @@ body.land .match-wrap{gap:10px;padding:8px}
 .camp.shu{border-color:#ff8a7a;background:linear-gradient(#8a2f22,#4d1710)}
 .camp.wu{border-color:#ffd76a;background:linear-gradient(#8a6a1a,#4d3a0b)}
 .camp.act{border-color:var(--gold);box-shadow:0 0 0 1.5px var(--gold),0 0 20px -4px rgba(255,215,106,.75)}
-.camp .cn{font-size:12px;font-weight:800;letter-spacing:2px}
+/* 阵营印章：圆形，浮在框的上沿 */
+.camp{position:relative;margin-top:11px}
+.camp .cn.seal{position:absolute;left:50%;top:-13px;transform:translateX(-50%);
+  width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:800;letter-spacing:0;line-height:1;color:#fff8e0;
+  font-family:"STKaiti","Kaiti SC","KaiTi",serif;
+  border:1.5px solid rgba(255,235,180,.75);box-shadow:0 2px 6px rgba(0,0,0,.55)}
+.camp .cn.seal.c0{background:linear-gradient(#3f7fe0,#23539f)}
+.camp .cn.seal.c1{background:linear-gradient(#d0483a,#8f2418)}
+.camp .cn.seal.c2{background:linear-gradient(#c79a2e,#8a6512)}
+/* 选好的牌型 + 倍数：三个框下面的一条横幅 */
+.pick-ribbon{margin-top:7px;display:inline-flex;align-items:center;gap:8px;align-self:center;
+  padding:3px 16px;border-radius:999px;font-size:13px;min-height:24px;
+  background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.14)}
+.pick-ribbon.on{background:linear-gradient(90deg,rgba(120,30,4,.9),rgba(60,14,2,.92));
+  border-color:rgba(255,190,90,.7);box-shadow:0 0 14px -4px rgba(255,170,60,.8)}
+.pick-ribbon .fx-name{font-size:16px}
+.pick-ribbon .m{color:var(--gold);font-size:17px;font-weight:900}
+.pick-ribbon .need{color:#ffd7a8;font-size:12px}
 .camp .cc{display:flex;gap:1px;justify-content:center;min-height:29px;align-items:center}
-.camp .cbest{min-height:15px}
 /* 阵营里：自己选的牌白底蓝边带「我」，和米黄的公牌区分开；没配够的画成空位 */
  /* 布阵时「模拟放入」的预览牌：金色虚线框，点一下撤回 */
 .card.preview{outline:2px dashed rgba(255,215,106,.95);outline-offset:-2px;
@@ -390,9 +446,6 @@ body.land .match-wrap{gap:10px;padding:8px}
 .card-hole{width:19px;height:27px;border-radius:4px;flex:none;
   border:1px dashed rgba(255,255,255,.34);background:rgba(0,0,0,.22)}
 .camp .cq{font-size:10px;opacity:.85;white-space:nowrap}
-.camp .cbest{font-size:10px;margin-top:2px;color:#ffe6bd;line-height:1.3}
-.camp .cbest b{color:#fff}
-.camp .cbest b.m{color:var(--gold);font-size:11px}
 .camp.reco{box-shadow:0 0 0 1px rgba(255,215,106,.8),0 0 10px rgba(255,215,106,.45)}
 .camp.reco.act{box-shadow:0 0 0 2px var(--gold),0 0 14px rgba(255,215,106,.8)}
 .reco-tag{font-size:9px;background:var(--red);border-radius:5px;padding:0 4px;font-weight:700;vertical-align:1px}

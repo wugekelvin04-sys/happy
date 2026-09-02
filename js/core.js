@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.9.0';
+const APP_VERSION = '2.10.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -581,7 +581,8 @@ function ensureResultTag(host, atTop, side, amtHost) {
   wrap.className = 'tag-wrap';
   wrap.style.visibility = 'hidden';
   wrap.innerHTML = '<div class="flames"><i style="animation-delay:-'
-    + (Math.random() * 1.4).toFixed(2) + 's"></i></div><div class="reveal-tag"></div>';
+    + (Math.random() * 1.4).toFixed(2) + 's"></i></div><div class="reveal-tag"></div>'
+    + '<span class="rank-coin" hidden></span>';
   if (Math.random() < .5) wrap.dataset.mir = '1';      // 左右翻一下，几家的火不至于一模一样
   const amt = document.createElement('div');
   amt.className = 'amt-line'; amt.style.visibility = 'hidden';
@@ -605,9 +606,19 @@ function setResultTag(host, o) {
   wrap.style.visibility = 'visible';
   wrap.className = 'tag-wrap' + (o.sm ? ' sm' : '');
   tag.className = 'reveal-tag' + (o.first ? ' first' : '');
-  tag.innerHTML = (o.badge == null ? ''
-    : '<span class="rank-badge rank-big rk' + (o.rk || Math.min(4, +o.badge || 1)) + '">' + o.badge + '</span>')
-    + (o.html || '');
+  const rkc = 'rk' + (o.rk || Math.min(4, +o.badge || 1));
+  const coin = wrap.querySelector('.rank-coin');
+  if (o.coinSide && o.badge != null) {                 // 名次做成条外侧的大圆徽章
+    coin.hidden = false;
+    coin.className = 'rank-coin ' + rkc + ' ' + o.coinSide;
+    coin.textContent = o.badge;
+    tag.classList.add('has-coin', 'coin-' + o.coinSide);
+    tag.innerHTML = o.html || '';
+  } else {
+    coin.hidden = true;
+    tag.innerHTML = (o.badge == null ? ''
+      : '<span class="rank-badge rank-big ' + rkc + '">' + o.badge + '</span>') + (o.html || '');
+  }
   const lv = fireLevel(o.fire);
   const fl = wrap.querySelector('.flames');
   fl.className = 'flames' + (lv ? ' lv' + lv : '') + (wrap.dataset.mir ? ' mir' : '');
@@ -632,7 +643,7 @@ function setResultTag(host, o) {
     { duration: .34, ease: MO ? Motion.backOut : 'ease-out' });
   else if (bumped) {
     anim(wrap, { scale: [1, 1.22, 1] }, { duration: .42, ease: 'ease-out' });
-    const b = tag.querySelector('.rank-badge');
+    const b = tag.querySelector('.rank-badge') || wrap.querySelector('.rank-coin:not([hidden])');
     if (b) anim(b, { rotate: [0, -14, 10, 0], scale: [1, 1.35, 1] }, { duration: .5, ease: 'ease-out' });
   }
   return wrap;

@@ -24,6 +24,8 @@ const SG_TYPES = [
 ];
 /* 名次倍率（官方表）：第 1 名赢所有人 */
 const SG_RANKMUL = [0, 32, 24, 12, 4];
+/* 名次徽章挂在牌型条朝外的那一侧：右边的座位挂右、左边的挂左 */
+const SG_COIN_SIDE = ['l', 'r', 'r', 'l', 'l'];
 function sgEval5(cards) {
   const rs = cards.map(c => c.r).sort((a, b) => b - a);
   const cnt = {}; rs.forEach(r => cnt[r] = (cnt[r] || 0) + 1);
@@ -192,26 +194,30 @@ class SanguoGame {
       for (let k = cp.pub + mySel.length; k < 5; k++) {
         const h = document.createElement('div'); h.className = 'card-hole'; cc.appendChild(h);
       }
-      d.innerHTML = '<div class="cn">' + cp.n + '</div>';
+      // 阵营印章浮在框的上方（腾讯原版的样子），不占框内的行
+      d.innerHTML = '<div class="cn seal c' + ci + '">' + cp.n + '</div>';
       d.appendChild(cc);
       const q = document.createElement('div'); q.className = 'cq';
       q.textContent = '出 ' + (5 - cp.pub) + ' 张';
       d.appendChild(q);
-      /* 只有选中的阵营才显示当前倍率 */
-      const bx = document.createElement('div'); bx.className = 'cbest';
-      if (act) {
-        const need = 5 - cp.pub;
-        const own = this.hands[0].filter(c => this.sel.has(c.id));
-        if (own.length === need) {
-          const e = sgEval5(own.concat(this.pubs[ci]));
-          bx.innerHTML = '<b class="fx-name">' + e.name + '</b> <b class="m">×' + e.mult + '</b>';
-        } else bx.innerHTML = '<span style="color:#ffd7a8">还需 ' + (need - own.length) + ' 张</span>';
-      } else bx.innerHTML = '&nbsp;';
-      d.appendChild(bx);
       d.onclick = () => { if (!this.busy) this.fillReco(ci); };   // 选国即自动配好该国最优牌
       wrap.appendChild(d);
     });
     this.mid.appendChild(wrap);
+
+    /* 牌型和倍数做成三个框下面的一条横幅（原版就在这儿），
+       框里再塞就会被挤出去看不见 */
+    const rb = document.createElement('div'); rb.className = 'pick-ribbon';
+    if (this.camp >= 0) {
+      const need = 5 - SG_CAMPS[this.camp].pub;
+      const own = this.hands[0].filter(c => this.sel.has(c.id));
+      if (own.length === need) {
+        const e = sgEval5(own.concat(this.pubs[this.camp]));
+        rb.classList.add('on');
+        rb.innerHTML = '<b class="fx-name">' + e.name + '</b><b class="m">×' + e.mult + '</b>';
+      } else rb.innerHTML = '<span class="need">还需 ' + (need - own.length) + ' 张</span>';
+    } else rb.innerHTML = '<span class="need">先选一个阵营</span>';
+    this.mid.appendChild(rb);
 
     const pv = document.createElement('div');
     pv.style.cssText = 'text-align:center;font-size:11px;margin-top:5px;min-height:16px;color:#ffd7a8';
@@ -322,8 +328,9 @@ class SanguoGame {
   setTag(i, play, rank, delta, revealedN) {
     setResultTag(this.slots[i], {
       badge: rank, first: rank === 1,
+      coinSide: SG_COIN_SIDE[i],                 // 名次徽章放在牌型条朝外的一侧
       fire: rankFire(rank, revealedN || 5),
-      html: '<span class="cn2">' + SG_CAMPS[play.camp].n + '</span>'
+      html: '<span class="camp-tag c' + play.camp + '">' + SG_CAMPS[play.camp].n + '</span>'
         + '<b class="fx-name lg">' + play.ev.name + '</b>',
       delta: delta,
     });
