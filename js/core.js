@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.4.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -469,17 +469,17 @@ function beanScale(amount, ref, streams) {
   const rel = ref ? Math.min(1, amount / ref) : .5;
   const mag = Math.min(1, Math.log10(Math.max(10, amount)) / 5);   // 100 豆≈.4，10 万≈1
   const t = Math.max(rel * .85, mag * .9);
-  const div = streams > 6 ? 2.2 : streams > 3 ? 1.6 : 1;
+  const div = streams > 6 ? 2 : streams > 3 ? 1.5 : 1;
   return {
     t: t,
-    n: Math.max(3, Math.round((4 + t * 17) / div)),
-    size: Math.round(14 + t * 13),
-    dur: .95 + t * .35,
-    arcK: .18 + t * .16
+    n: Math.max(8, Math.round((12 + t * 40) / div)),   // 一大堆小豆子
+    size: Math.round(9 + t * 7),                       // 9 ~ 16px
+    dur: 1.15 + t * .3,
+    spread: 22 + t * 26                                // 横向散开幅度
   };
 }
-/* 欢乐豆从输家飞到赢家：走一条抛物线，起点冒出、终点收拢，
-   这样一眼能看出豆是从谁那儿飞到谁那儿的。 */
+/* 欢乐豆从输家的账户「流」到赢家的账户：一大堆小豆子沿直线连续飞过去，
+   每颗有一点随机偏移，整体像一股豆流。 */
 function flyBeansRect(a, b, amount, streams, ref, durSec) {
   if (!a || !b || REDUCED) return;
   const layer = $('#flyLayer');
@@ -488,8 +488,7 @@ function flyBeansRect(a, b, amount, streams, ref, durSec) {
   const ax = a.left + a.width / 2 - half, ay = a.top + a.height / 2 - half;
   const dx = (b.left + b.width / 2 - half) - ax, dy = (b.top + b.height / 2 - half) - ay;
   const len = Math.hypot(dx, dy) || 1;
-  const nx = -dy / len, ny = dx / len;                 // 与飞行方向垂直，用来做抛物线弧度
-  const arc = Math.min(110, len * sc.arcK);
+  const nx = -dy / len, ny = dx / len;                 // 垂直方向，只用来做小幅散开
   const frag = document.createDocumentFragment(), els = [];
   for (let i = 0; i < n; i++) {
     const d = document.createElement('div');
@@ -498,14 +497,15 @@ function flyBeansRect(a, b, amount, streams, ref, durSec) {
     frag.appendChild(d); els.push(d);
   }
   layer.appendChild(frag);
+  const dur = durSec || sc.dur;
   els.forEach((d, i) => {
-    const spread = n > 1 ? (i / (n - 1) - .5) * 2 : 0;  // -1 ~ 1，让整串豆散开
-    const k = 1 + spread * .45;
-    const mx = dx * .5 + nx * arc * k, my = dy * .5 + ny * arc * k;
+    const off = (Math.random() - .5) * sc.spread;      // 每颗豆偏离直线一点点
+    const off2 = (Math.random() - .5) * sc.spread * .5;
+    const mx = dx * .5 + nx * off, my = dy * .5 + ny * off;
     removeAfter(d, anim(d, {
-      x: [0, mx, dx], y: [0, my, dy],
-      scale: [.3, 1.15, .45], opacity: [0, 1, 1, 0]
-    }, { duration: durSec || sc.dur, delay: i * (.5 / n), ease: EASE_OUT }));
+      x: [0, mx, dx + nx * off2], y: [0, my, dy + ny * off2],
+      scale: [.35, 1, .55], opacity: [0, 1, 1, 0]
+    }, { duration: dur, delay: i * (.75 / n), ease: 'linear' }));   // 密集连续，像一股流
   });
 }
 function flyBeans(fromEl, toEl, amount) {

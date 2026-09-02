@@ -144,15 +144,16 @@ class SanguoGame {
     const b = this.c.body;
     [...b.querySelectorAll('.seat-chip,.play-slot,.center-zone')].forEach(e => e.remove());
     this.seats = []; this.slots = [];
-    /* 0=我(下方)  1=右下  2=右上  3=左上  4=左下 */
+    /* 0=我(下方居中) 1=右下 2=右上 3=左上 4=左下
+       账户（座位牌）紧贴各自的牌区：上排在牌上方，下排在牌下方，我的在下方正中 */
     const CH = [null,
-      { chip: { right: '2px', top: '47%' }, rev: true },
-      { chip: { right: '2px', top: '1%' }, rev: true },
-      { chip: { left: '2px', top: '1%' } },
-      { chip: { left: '2px', top: '47%' } }];
-    const SP = [{ left: '50%', bottom: '2%', tx: -50 },
-      { right: '2px', top: '68%' }, { right: '2px', top: '22%' },
-      { left: '2px', top: '22%' }, { left: '2px', top: '68%' }];
+      { chip: { right: '2px', bottom: '2px' }, rev: true },   // 右下：账户在牌下面
+      { chip: { right: '2px', top: '2px' }, rev: true },       // 右上：账户在牌上面
+      { chip: { left: '2px', top: '2px' } },                   // 左上
+      { chip: { left: '2px', bottom: '2px' } }];               // 左下
+    const SP = [{ left: '50%', bottom: '40px', tx: -50 },
+      { right: '2px', bottom: '56px' }, { right: '2px', top: '56px' },
+      { left: '2px', top: '56px' }, { left: '2px', bottom: '56px' }];
     for (let i = 1; i < 5; i++) {
       const el = mkSeat(this.P[i], CH[i], '<span class="hs">8 张</span>');
       b.appendChild(el); this.seats[i] = el;
@@ -287,9 +288,13 @@ class SanguoGame {
       bk.style.height = Math.round((big ? 50 : 40) * 1.44) + 'px';
       f.appendChild(bk); row.appendChild(f);
     }
+    const wrap = document.createElement('div');
+    wrap.className = 'tag-wrap'; wrap.style.visibility = 'hidden';
+    wrap.innerHTML = '<div class="fire-base"></div><div class="flames"></div>';
     const tag = document.createElement('div');
-    tag.className = 'reveal-tag'; tag.style.visibility = 'hidden'; tag.textContent = '—';
-    sl.appendChild(tag);          // 名次牌型标在牌的上方
+    tag.className = 'reveal-tag'; tag.textContent = '—';
+    wrap.appendChild(tag);
+    sl.appendChild(wrap);         // 名次牌型标在牌的上方
     sl.appendChild(row);
     return row;
   }
@@ -314,61 +319,59 @@ class SanguoGame {
   /* 沿名次牌外围生成一圈火舌：底边一排 + 两端各一簇，越靠前的名次越高越密 */
   flamesHtml(fire) {
     if (fire <= .04) return '';
-    const n = Math.round(5 + fire * 7);            // 5 ~ 12 条火舌
-    let h = '<div class="flames">';
-    for (let k = 0; k < n; k++) {
-      const p = n > 1 ? (k + .5) / n : .5;         // 沿底边均匀分布
-      const edge = Math.abs(p - .5) * 2;           // 中间高、两头矮
-      const hgt = Math.round((26 + fire * 34) * (1 - edge * .38) * (.75 + Math.random() * .5));
-      const wid = Math.round(hgt * (.42 + Math.random() * .16));   // 细长才像火舌
-      const left = (p * 100).toFixed(1);
+    let h = '';
+    const put = (left, top, rot, hgt) => {
+      const wid = Math.round(hgt * (.44 + Math.random() * .16));
       const dur = (.6 + Math.random() * .5).toFixed(2);
       const dly = (Math.random() * .8).toFixed(2);
-      const bot = Math.round(-1 + Math.random() * 5);
-      const alt = k % 2 ? ' alt' : '';
-      h += '<div class="flame' + alt + '" style="left:calc(' + left + '% - ' + (wid / 2) + 'px);bottom:' + bot
-        + 'px;width:' + wid + 'px;height:' + hgt + 'px;animation-duration:' + dur
-        + 's;animation-delay:-' + dly + 's"></div>';
-      if (fire > .45) {                             // 旺的时候叠一层更亮更细的内焰
-        const w2 = Math.round(wid * .5), h2 = Math.round(hgt * .58);
-        h += '<div class="flame inner' + alt + '" style="left:calc(' + left + '% - ' + (w2 / 2) + 'px);bottom:' + bot
-          + 'px;width:' + w2 + 'px;height:' + h2 + 'px;animation-duration:' + (+dur * .78).toFixed(2)
-          + 's;animation-delay:-' + dly + 's"></div>';
-      }
+      h += '<div class="flame-slot" style="left:' + left + ';top:' + top + ';transform:rotate(' + rot + 'deg)">'
+        + '<div class="flame' + (Math.random() < .5 ? ' alt' : '') + '" style="left:' + (-wid / 2) + 'px;width:'
+        + wid + 'px;height:' + Math.round(hgt) + 'px;animation-duration:' + dur
+        + 's;animation-delay:-' + dly + 's"></div></div>';
+    };
+    const H = 20 + fire * 26;                       // 火舌基准高度
+    const nTop = Math.round(3 + fire * 5);          // 上边
+    for (let k = 0; k < nTop; k++) {
+      const p = (k + .5) / nTop;
+      put((8 + p * 84).toFixed(1) + '%', '0', (p - .5) * 26, H * (.75 + Math.random() * .5));
     }
-    return h + '</div>';
+    const nBot = Math.round(2 + fire * 4);          // 下边
+    for (let k = 0; k < nBot; k++) {
+      const p = (k + .5) / nBot;
+      put((10 + p * 80).toFixed(1) + '%', '100%', 180 + (p - .5) * -26, H * (.6 + Math.random() * .4));
+    }
+    if (fire > .3) {                                // 两端
+      [['0', -90], ['100%', 90]].forEach(([x, r]) => {
+        [.32, .72].forEach(y => put(x, (y * 100) + '%', r, H * (.55 + Math.random() * .35)));
+      });
+    }
+    return h;
   }
   /* 名次徽章 + 牌型（+ 输赢豆）。名次越靠前烧得越旺，
      强度按「已开牌人数里的倒排位置」算：第 1 名满格，最后一名最弱。 */
   setTag(i, play, rank, delta, revealedN) {
-    const tag = this.slots[i].querySelector('.reveal-tag');
-    if (!tag) return;
-    const firstShow = tag.style.visibility === 'hidden';
+    const wrap = this.slots[i].querySelector('.tag-wrap');
+    if (!wrap) return;
+    const tag = wrap.querySelector('.reveal-tag');
+    const firstShow = wrap.style.visibility === 'hidden';
     const changed = !firstShow && this.shownRank && this.shownRank[i] !== rank;
     this.shownRank = this.shownRank || {};
     this.shownRank[i] = rank;
-    tag.style.visibility = 'visible';
+    wrap.style.visibility = 'visible';
     tag.className = 'reveal-tag' + (rank === 1 ? ' first' : '');
     const n = Math.max(1, revealedN || 5);
     const fire = Math.max(0, Math.min(1, (n - rank + 1) / n));      // 倒排 → 0~1
-    tag.style.setProperty('--fire', fire.toFixed(2));
-    let html = '<div class="fire-base"></div>' + this.flamesHtml(fire);
-    const embers = fire >= .55 ? Math.round(fire * 5) : 0;          // 烧得旺才冒火星
-    for (let k = 0; k < embers; k++) {
-      const x = (k - (embers - 1) / 2) * 13;
-      html += '<div class="ember" style="left:calc(50% + ' + x + 'px);--ex:' + Math.round((Math.random() - .5) * 22)
-        + 'px;animation-delay:' + (k * .22).toFixed(2) + 's;animation-duration:' + (1.2 + Math.random() * .6).toFixed(2) + 's"></div>';
-    }
-    html += '<span class="rank-badge rank-big rk' + Math.min(4, rank) + '">' + rank + '</span>'
+    wrap.style.setProperty('--fire', fire.toFixed(2));
+    wrap.querySelector('.flames').innerHTML = this.flamesHtml(fire);
+    tag.innerHTML = '<span class="rank-badge rank-big rk' + Math.min(4, rank) + '">' + rank + '</span>'
       + '<span class="cn2">' + SG_CAMPS[play.camp].n + '</span>'
       + '<b class="fx-name lg">' + play.ev.name + '</b>'
       + (delta ? '<b class="amt" style="color:' + (delta > 0 ? '#7dffae' : '#ff8272') + '">'
         + (delta > 0 ? '+' : '') + fmt(delta) + '</b>' : '');
-    tag.innerHTML = html;
-    if (firstShow) anim(tag, { opacity: [0, 1], scale: [.6, 1] },
+    if (firstShow) anim(wrap, { opacity: [0, 1], scale: [.6, 1] },
       { duration: .34, ease: MO ? Motion.backOut : 'ease-out' });
     else if (changed) {                       // 名次被后面的人挤动了 → 弹一下提示
-      anim(tag, { scale: [1, 1.28, 1] }, { duration: .42, ease: 'ease-out' });
+      anim(wrap, { scale: [1, 1.22, 1] }, { duration: .42, ease: 'ease-out' });
       const badge = tag.querySelector('.rank-badge');
       if (badge) anim(badge, { rotate: [0, -14, 10, 0], scale: [1, 1.35, 1] },
         { duration: .5, ease: 'ease-out' });
