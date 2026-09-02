@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.5.0';
+const APP_VERSION = '2.5.1';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -110,6 +110,20 @@ function closeModal() { $('#mask').classList.remove('on'); }
 function show(id) { $$('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
 
 /* ---------------- 强制刷新 / 版本信息 ---------------- */
+const CORE_FILES = ['index.html', 'js/core.js', 'js/baque.js', 'js/douxian.js',
+  'js/sanguo.js', 'js/vendor/motion.js', 'sw.js'];
+/* 开机静默比一次版本号：线上比本地新就自动清缓存重载，不用手点强制刷新。 */
+async function checkUpdate() {
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), { cache: 'reload' });
+    if (!r.ok) return;
+    const v = (await r.json()).v;
+    if (v && v !== APP_VERSION) {
+      toast('发现新版本 v' + v + '，正在更新…', 2000);
+      setTimeout(hardReload, 600);
+    }
+  } catch (e) { }
+}
 async function hardReload() {
   toast('正在清理缓存…', 1500);
   try {
@@ -121,6 +135,12 @@ async function hardReload() {
       const ks = await caches.keys();
       for (const k of ks) await caches.delete(k);
     }
+  } catch (e) { }
+  // 光清 SW 缓存不够：浏览器自己的 HTTP 缓存还会拿旧 js。
+  // 逐个 cache:'reload' 重取一遍，把 HTTP 缓存条目也换成新的。
+  try {
+    await Promise.all(CORE_FILES.map(f =>
+      fetch(f + '?hr=' + Date.now(), { cache: 'reload' }).catch(() => { })));
   } catch (e) { }
   // 只清离线缓存，不动 localStorage（欢乐豆和昵称都保留）
   location.replace(location.origin + location.pathname + '?v=' + Date.now());
@@ -648,6 +668,7 @@ function bootstrap() {
   refreshMe();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { }));
+  setTimeout(checkUpdate, 1200);
 }
 function showRules(k) {
   openModal(GAMES[k].rules + '<div class="foot"><button class="btn sm" data-ok>知道了</button></div>');
