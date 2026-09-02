@@ -183,12 +183,13 @@ class DouxianGame {
     /* 斗法阶段把牌放大，正在比拼的那一界再大一号 */
     // 尺寸照截图：自始至终不变，正在比拼的那界只加金框不放大 ——
     // 一放大块就变宽，必然撞上旁边的区域和别家的牌
-    // 官方一格：自己 144/2781 = 5.18% 的桌宽，别家 72/2781 = 2.59%。
-    // 按桌宽实时换算，换设备也对得上；写死 px 只在某一个尺寸下准。
-    const TW = (this.c.body && this.c.body.clientWidth) || 852;
+    // 尺寸一律按「桌高」算，不按桌宽 —— 画布填满安全区之后宽高比从 2.17 变成
+    // 约 1.98（相对更窄），按宽算出来的牌会偏小，两边白白空出来。按高算牌的
+    // 物理大小不变，占宽的比例自然涨约 10%，正好把两边填上。
+    const TH = (this.c.body && this.c.body.clientHeight) || 393;
     // 别家一格：布阵时 2.15% 桌宽（灰格挤两行），斗法时放大到 3.2% —— 官方斗法
     // 阶段别家的牌明显更大，牌面要看得清，太小等于没显示
-    const cw = Math.round(TW * (mini ? (show ? .032 : .0215) : .050));
+    const cw = Math.round(TH * (mini ? (show ? .070 : .047) : .109));
     for (let i = 0; i < size; i++) {
       if (cards[i]) {
         if (reveal === false) {
@@ -288,8 +289,8 @@ class DouxianGame {
       const mr = document.createElement('div');
       mr.className = 'mini-realms' + (i === 3 ? ' lft' : '');
       // 官方别家区域整块占桌宽 12.1%，凡+灵 一行、仙 折到第二行
-      mr.style.maxWidth = Math.round(((this.c.body && this.c.body.clientWidth) || 852)
-        * (showOthers ? .20 : .135)) + 'px';
+      const TH2 = (this.c.body && this.c.body.clientHeight) || 393;
+      mr.style.maxWidth = Math.round(TH2 * (showOthers ? .435 : .293)) + 'px';
       for (let z = 0; z < 3; z++) {
         const el = this.realmEl(i, z, true, showOthers);
         if (this.round === 1 && z === 2) el.classList.add('sealed');   // 官方也画出来，占第二行
@@ -300,7 +301,7 @@ class DouxianGame {
       this.seats[i].querySelector('.hs').textContent =
         this.phase === 'place' ? '布阵中…' : '手牌 ' + this.hands[i].length;
     }
-    const TW0 = (this.c.body && this.c.body.clientWidth) || 852;
+    const TH0 = (this.c.body && this.c.body.clientHeight) || 393;
     const box0 = this.slots[0]; box0.innerHTML = '';
     const wrap = document.createElement('div'); wrap.className = 'realms';
     for (let z = 0; z < 3; z++) {
@@ -332,10 +333,10 @@ class DouxianGame {
     box0.appendChild(wrap);
     this.myBanner = this.myBanner || null;
     const hd = this.c.hand; hd.innerHTML = '';
-    // 官方手牌单张宽 7.5% 桌宽、露出 4.3%（叠 3.2%）
-    const HW = Math.round(TW0 * .075);
+    // 官方手牌单张 7.5% 桌宽、露出 4.3% —— 同样换算成按桌高
+    const HW = Math.round(TH0 * .163);
     fitHand(hd, this.hands[0].length, HW);
-    hd.style.setProperty('--ov', -Math.round(TW0 * .032) + 'px');
+    hd.style.setProperty('--ov', -Math.round(TH0 * .070) + 'px');
     this.hands[0].forEach(c => {
       const e = cardEl(c); e.style.setProperty('--cw', HW + 'px');
       if (this.sel.has(c.id)) e.classList.add('sel');
