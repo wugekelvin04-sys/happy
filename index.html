@@ -149,16 +149,18 @@ body.land .match-wrap{gap:10px;padding:8px}
 .actbar{display:flex;gap:8px;justify-content:center;align-items:center;min-height:36px;padding:1px 8px;flex-wrap:wrap}
 .me-bar{position:absolute;left:6px;bottom:2px;display:flex;align-items:center;gap:6px;font-size:11px;z-index:7}
 
-/* 座位牌 */
-.seat-chip{position:absolute;display:flex;align-items:center;gap:6px;z-index:5;
-  background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:3px 10px 3px 3px}
-.seat-chip.rev{flex-direction:row-reverse;padding:3px 3px 3px 10px}
-.seat-chip .av{width:30px;height:30px;border-radius:50%;flex:none;background:linear-gradient(160deg,#ffe08a,#e0a12c);
-  border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:15px}
-.seat-chip .info{font-size:10.5px;line-height:1.3;min-width:56px;max-width:82px}
-.seat-chip.rev .info{text-align:right}
+/* 座位牌：照官方截图做成竖版 —— 头像在上、昵称和豆数在下，整体约 56px 宽。
+   原来是横版 180px 宽，位置怎么摆都会跟牌块撞上。 */
+.seat-chip{position:absolute;display:flex;flex-direction:column;align-items:center;gap:1px;z-index:5;
+  width:62px;padding:2px 2px 3px;border-radius:10px;
+  background:rgba(0,0,0,.38);border:1px solid rgba(255,255,255,.1)}
+.seat-chip .av{width:34px;height:34px;border-radius:50%;flex:none;
+  background:linear-gradient(160deg,#ffe08a,#e0a12c);
+  border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:17px}
+.seat-chip .info{font-size:9.5px;line-height:1.25;width:100%;text-align:center}
 .seat-chip .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.seat-chip .ex{font-size:9.5px;opacity:.92;white-space:nowrap}
+.seat-chip .bean{justify-content:center}
+.seat-chip .ex{font-size:9px;opacity:.9;white-space:nowrap}
 .seat-chip.turn{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold),0 0 18px -2px rgba(255,215,106,.65)}
 .role-badge{position:absolute;left:50%;transform:translateX(-50%);bottom:-8px;font-size:9px;background:var(--red);
   border-radius:6px;padding:0 5px;font-weight:800;white-space:nowrap}
@@ -278,6 +280,8 @@ body.land .match-wrap{gap:10px;padding:8px}
 #table.th-sanguo.reveal .center-zone > div{font-size:15px !important;padding:7px 18px !important}
 /* 斗仙的中央提示往下挪一点，给上家的牌块和它下面的输赢豆让位 */
 #table.th-douxian .center-zone{top:47%}
+/* 座位牌改成竖版之后变高了，八雀的中央托盘往下让一点，别被上家的牌压住 */
+#table.th-baque .center-zone{top:61%}
 /* 斗法：正在比拼的那一界高亮放大 */
 .realm.hot{background:rgba(255,215,106,.2);border-color:var(--gold);
   box-shadow:0 0 0 1px rgba(255,215,106,.7),0 0 16px rgba(255,215,106,.45)}
@@ -285,7 +289,7 @@ body.land .match-wrap{gap:10px;padding:8px}
 #table.reveal .realm.hot .pw{font-size:15px;font-weight:900;color:var(--gold);min-height:19px;
   text-shadow:0 1px 3px rgba(0,0,0,.85)}
 .realm.cold{opacity:.5}
-.win-chip{position:absolute;left:50%;top:-9px;transform:translateX(-50%);z-index:8;
+.win-chip{position:absolute;left:auto;right:-8px;top:auto;bottom:-9px;transform:none;z-index:9;
   background:linear-gradient(#fff2b8,#ffb32e);color:#5a2f00;font-size:11px;font-weight:900;
   border-radius:999px;padding:1px 9px;white-space:nowrap;pointer-events:none;
   box-shadow:0 2px 8px rgba(0,0,0,.5)}
@@ -303,10 +307,10 @@ body.land .match-wrap{gap:10px;padding:8px}
 
 /* 结算标的紧凑档：斗仙牌四家 + 三界，手机上竖向只有 393px，
    用三国那个尺寸的标会把账户和牌全压住。 */
-.tag-wrap.sm .reveal-tag{font-size:14px;padding:2px 9px;gap:5px;border-radius:9px;letter-spacing:0}
-.tag-wrap.sm .rank-badge.rank-big{width:21px;height:21px;font-size:13px}
+.tag-wrap.sm .reveal-tag{font-size:12px;padding:1px 8px;gap:4px;border-radius:8px;letter-spacing:0}
+.tag-wrap.sm .rank-badge.rank-big{width:18px;height:18px;font-size:12px}
 .tag-wrap.sm .fx-name.lg{font-size:1em;letter-spacing:1px}
-.tag-wrap.sm .pv{font-size:13px;margin-left:1px}
+.tag-wrap.sm .pv{font-size:12px;margin-left:1px}
 /* 标里带第二行小字（八雀把番型明细并进来，中间就不用再摆一个结算框了） */
 .reveal-tag .col{display:flex;flex-direction:column;align-items:flex-start;line-height:1.2}
 .reveal-tag .col small{font-size:10px;font-weight:600;color:#ffd9a8;opacity:.9;letter-spacing:0}
@@ -314,10 +318,18 @@ body.land .match-wrap{gap:10px;padding:8px}
 .amt-line.sm{font-size:15px;min-height:18px;-webkit-text-stroke:.6px rgba(0,0,0,.6);margin:0}
 
 /* 斗仙牌：斗法横幅 / 名次 / 飘豆动画 */
-/* 斗仙的结算标就长在「正在比拼的那一界」的标签位里，随牌块走，不浮动 */
-/* 结算标压在区域上沿那一行；行本身不长高，标往上溢出一点点 */
-.realm .rn > .tag-wrap{margin:-3px 0 -1px}
-.realm .pw > .amt-line{min-height:0;margin:0}
+/* 斗仙的结算横幅：贴在被比拼区域的上沿，朝空的那一侧伸出去（照官方），
+   一行装下 名次 + 牌型 + 灵力 + 输赢豆，不占区域内部的空间，也不盖牌。 */
+.realm{position:relative}
+.pw-band{position:absolute;bottom:calc(100% - 4px);z-index:8;
+  display:flex;align-items:center;gap:6px;white-space:nowrap;pointer-events:none}
+/* 横幅朝桌子里边伸，别压到最外侧的头像上 */
+.pw-band.a-c{left:50%;transform:translateX(-50%)}
+.pw-band.a-l{left:0}
+.pw-band.a-r{right:0}
+.slot-amt{position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  margin-top:2px;z-index:8;pointer-events:none}
+.slot-amt .amt-line{min-height:0;margin:0;font-size:17px;white-space:nowrap}
 .mini-pw{font-size:9px;line-height:1.3;text-align:center;color:#cfe0ff;opacity:.85;min-height:12px}
 .reveal-tag .pv{color:#ffe38a;font-size:15px;font-weight:900;margin-left:2px}
 .rank-badge{width:17px;height:17px;border-radius:50%;font-size:11px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex:none}

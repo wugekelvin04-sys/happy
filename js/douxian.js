@@ -14,6 +14,8 @@ const DX_ZONES = [{ k: 'fan', n: '凡', size: 2 }, { k: 'ling', n: '灵', size: 
    灵力值 =（主体牌型的点数大小 × 牌型倍率 + 牌型值）× 回合倍率
    点数 A>K>Q>…>2；K=13 Q=12 J=11；A 常规 14，组成 A2 / A23 / A2345 时 A 记为 1
    回合倍率（灵气复苏）：第 1 回合 1，第 2、3 回合 2，第 4 回合 3 */
+/* 横幅朝桌子里边伸：自己居中，右家向左伸，左家和上家向右伸 —— 朝外伸会压到头像 */
+const DX_BAND_SIDE = ['a-c', 'a-r', 'a-l', 'a-l'];
 const DX_ROUND_MUL = [0, 1, 2, 2, 3];
 /* [牌型倍率, 牌型值] */
 const DX_TABLE = [
@@ -135,14 +137,16 @@ class DouxianGame {
     /* 位置照 pp22 官方截图按比例换算（原图 2781×1280 与本牌桌 852×393 宽高比一致）：
        每家都是「头像在外、牌块紧挨着往里」横向排一行；自己的三界在中下方一整行，
        手牌在它下面。 */
+    /* 坐标全部照 pp22 官方截图量出来再换算（原图 2781×1280，与本牌桌同宽高比）：
+       头像 5%/89.5%/35%，牌块 14.5%/73%/45.5%，自己的三界在 23.5%~75% × 58.6% 处。 */
     const CH = [null,
-      { chip: { right: '6px', top: '29%' }, rev: true },     // 右家
-      { chip: { left: '22%', top: '5%' } },                  // 上家
-      { chip: { left: '6px', top: '29%' } }];                // 左家
-    const ZP = [{ left: '50%', top: '57%', tx: -50 },
-      { right: '14.5%', top: '29.5%' },
-      { left: '45.5%', top: '5%' },
-      { left: '14.5%', top: '29.5%' }];
+      { chip: { right: '4%', top: '28.8%' } },                // 右家
+      { chip: { left: '35%', top: '6.5%' } },                 // 上家
+      { chip: { left: '5%', top: '28.8%' } }];                // 左家
+    const ZP = [{ left: '50%', top: '58.6%', tx: -50 },
+      { right: '15.5%', top: '29.8%' },
+      { left: '45.5%', top: '5.9%' },
+      { left: '14.5%', top: '29.8%' }];
     for (let i = 1; i < 4; i++) {
       const el = mkSeat(this.P[i], CH[i], '<span class="hs"></span>');
       b.appendChild(el); this.seats[i] = el;
@@ -175,8 +179,9 @@ class DouxianGame {
     const preview = (!mini && this.phase === 'place' && zi === this.activeZone)
       ? this.hands[0].filter(c => this.sel.has(c.id)) : [];
     /* 斗法阶段把牌放大，正在比拼的那一界再大一号 */
-    // 尺寸照截图：自己 42px（正在比拼的那界 46），别家 20px（比拼中 23）
-    const cw = mini ? (hot ? 23 : 20) : (hot ? 46 : 42);
+    // 尺寸照截图：自始至终不变，正在比拼的那界只加金框不放大 ——
+    // 一放大块就变宽，必然撞上旁边的区域和别家的牌
+    const cw = mini ? 20 : 42;
     for (let i = 0; i < size; i++) {
       if (cards[i]) {
         if (reveal === false) {
@@ -411,20 +416,27 @@ class DouxianGame {
      和三国牌用的是同一套（core.js 里的 setResultTag）。 */
   banner(i, txt, val, rank, delta) {
     const sl = this.slots[i];
-    // 照腾讯原版：牌型 + 灵力做成一条细横幅压在「正在比拼的那一界」的上沿
-    //（占掉界名那一行），输赢豆写在这一界底下那行标签位。两处本来就在版面里，
-    // 不额外占高度、不盖牌，各家的标也各自待在自己的牌块里，压不到别人。
-    const hot = sl.querySelector('.realm.hot');
-    const host = hot ? hot.querySelector('.rn') : sl.querySelector('.pw');
-    if (!host) return;
-    if (!host.querySelector('.tag-wrap')) host.textContent = '';
-    const pw = hot ? hot.querySelector('.pw') : null;
-    if (pw && !pw.querySelector('.amt-line')) pw.textContent = '';
-    setResultTag(host, {
+    // 照官方：横幅贴在「正在比拼的那一界」的上沿，朝空的那一侧伸出去，
+    // 一行装下 名次 + 牌型 + 灵力 + 输赢豆。塞进区域里面会把牌盖住。
+    const hot = sl.querySelector('.realm.hot') || sl.querySelector('.realm');
+    if (!hot) return;
+    let band = hot.querySelector(':scope > .pw-band');
+    if (!band) {
+      band = document.createElement('div');
+      band.className = 'pw-band ' + DX_BAND_SIDE[i];
+      hot.appendChild(band);
+      const pw = hot.querySelector('.pw');
+      if (pw) pw.textContent = '';                 // 牌型和灵力挪到横幅上了
+    }
+    // 输赢豆放到整块牌的下面单开一行：跟横幅挤在一行会把横幅撑得太宽，
+    // 两头都会伸到头像和旁边的区域上去。
+    let uh = sl.querySelector(':scope > .slot-amt');
+    if (!uh) { uh = document.createElement('div'); uh.className = 'slot-amt'; sl.appendChild(uh); }
+    setResultTag(band, {
       badge: rank, first: rank === 1, fire: rankFire(rank, 4), sm: true,
       html: '<b class="fx-name lg">' + txt + '</b>'
         + (val === '' ? '' : '<span class="pv">' + val + '</span>'),
-      delta: delta, amtHost: pw || undefined,
+      delta: delta, amtHost: uh,
     });
   }
   /* 这一界赢豆的玩家弹「胜」标（可能同时有 2 人赢） */
@@ -447,7 +459,7 @@ class DouxianGame {
     await sleep(520);
   }
   clearBanners() {
-    for (let i = 0; i < 4; i++) this.slots[i].querySelectorAll('.rn,.pw').forEach(clearResultTag);
+    for (let i = 0; i < 4; i++) this.slots[i].querySelectorAll('.pw-band,.slot-amt').forEach(e => e.remove());
   }
   beanAnchor(i) { return this.anchors[i]; }
   async resolve() {
