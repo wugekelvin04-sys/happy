@@ -234,7 +234,8 @@ class BaqueGame {
     this.slots[0] = mkPlaySlot(R[0]); b.appendChild(this.slots[0]);
     this.center = document.createElement('div'); this.center.className = 'center-zone';
     b.appendChild(this.center);
-    this.anchors = [$('.me-bar'), this.seats[1], this.seats[2], this.seats[3]];
+    /* 自己用手牌区、别家用座位牌当飞豆的起终点 */
+    this.anchors = [this.c.hand, this.seats[1], this.seats[2], this.seats[3]];
   }
   render() {
     for (let i = 1; i < 4; i++) {

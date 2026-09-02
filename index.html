@@ -165,12 +165,13 @@ body.land .match-wrap{gap:10px;padding:8px}
 /* 飞牌 / 飞豆动画 */
 .fly-layer{position:fixed;inset:0;pointer-events:none;z-index:60;transform:translateZ(0)}
 .fly-card{position:fixed;will-change:transform,opacity;backface-visibility:hidden}
-.fly-bean{position:fixed;width:17px;height:17px;border-radius:50%;will-change:transform,opacity;
+.fly-bean{position:fixed;border-radius:50%;will-change:transform,opacity;
   background:radial-gradient(circle at 32% 30%,#fff8d0,#ffcc33 45%,#c98a09);
   box-shadow:0 0 7px rgba(255,205,70,.95),inset 0 -2px 2px rgba(0,0,0,.3)}
-/* 赢家光圈：独立图层，只动 opacity/transform */
-.pulse-ring{position:fixed;border-radius:999px;pointer-events:none;will-change:transform,opacity;
-  border:2px solid rgba(255,215,106,.95);box-shadow:0 0 16px rgba(255,215,106,.75)}
+/* 起终点光圈：赢家金色、输家红色 */
+.pulse-ring{position:fixed;border-radius:14px;pointer-events:none;will-change:transform,opacity;
+  border:2px solid rgba(255,215,106,.95)}
+.pulse-ring.lose{border-color:rgba(255,120,100,.9);border-style:dashed}
 
 /* ================= 牌 ================= */
 .card{position:relative;contain:layout paint;width:var(--cw,46px);height:calc(var(--cw,46px)*1.44);border-radius:5px;background:#fff;
@@ -273,18 +274,39 @@ body.land .match-wrap{gap:10px;padding:8px}
 .pwr-banner.win .v{color:#7a2f00}
 .rank-badge{width:17px;height:17px;border-radius:50%;font-size:11px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex:none}
 .rank-big{width:34px;height:34px;font-size:21px}
-.reveal-tag{display:inline-flex;align-items:center;gap:8px;justify-content:center;font-size:20px;font-weight:700;
-  background:rgba(10,16,14,.85);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:4px 14px;
-  white-space:nowrap;will-change:transform,opacity;letter-spacing:.5px}
+.reveal-tag{position:relative;display:inline-flex;align-items:center;gap:8px;justify-content:center;
+  font-size:20px;font-weight:700;background:rgba(10,16,14,.85);border:1px solid rgba(255,255,255,.14);
+  border-radius:12px;padding:4px 14px;white-space:nowrap;will-change:transform,opacity;letter-spacing:.5px}
+/* 名次越靠前烧得越旺：--fire 0~1 控制火焰强度 */
+.reveal-tag .fire{position:absolute;inset:-14px -10px -6px;border-radius:18px;pointer-events:none;
+  opacity:calc(var(--fire,0) * .95);will-change:transform,opacity;
+  background:radial-gradient(58% 78% at 50% 100%,
+    rgba(255,214,120,.95) 0%,rgba(255,150,40,.7) 30%,rgba(255,80,20,.35) 55%,rgba(255,60,0,0) 78%);
+  animation:fireBreath 1s ease-in-out infinite alternate}
+@keyframes fireBreath{from{transform:scale(.96,.9)}to{transform:scale(1.05,1.16)}}
+.ember{position:absolute;bottom:3px;width:5px;height:5px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle at 40% 35%,#fff6cf,#ffab35 48%,#ff5c14);
+  will-change:transform,opacity;animation:emberUp 1.5s ease-out infinite}
+@keyframes emberUp{0%{opacity:0;transform:translate(0,0) scale(.4)}
+  16%{opacity:1;transform:translate(calc(var(--ex,0px)*.3),-8px) scale(1)}
+  100%{opacity:0;transform:translate(var(--ex,0px),-40px) scale(.2)}}
 .reveal-tag.first{border-color:var(--gold);box-shadow:0 0 0 1.5px var(--gold),0 0 26px -6px rgba(255,215,106,.85),
   inset 0 1px 0 rgba(255,255,255,.16)}
 .reveal-tag .cn2{font-size:16px;opacity:.85}
+/* 牌型名用系统里的楷体/宋体做艺术字，配金色渐变和描边，不下载字体也能离线用 */
+.fx-name{font-family:"STKaiti","Kaiti SC","KaiTi","STSong","Songti SC","Songti TC",serif;
+  font-weight:700;letter-spacing:2px;
+  background:linear-gradient(180deg,#fff6cf 0%,#ffd76a 42%,#e8a11c 78%,#c97f10 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  -webkit-text-stroke:.6px rgba(70,38,0,.55);
+  filter:drop-shadow(0 1px 0 rgba(0,0,0,.55))}
+.fx-name.lg{font-size:1.18em}
 .reveal-tag .amt{font-size:21px;font-weight:900}
 .rk1{background:linear-gradient(#ffe58a,#e0a12c);color:#5a2f00;box-shadow:0 0 8px rgba(255,200,80,.9)}
 .rk2{background:linear-gradient(#c8dcff,#5a86c8);color:#0d2140}
 .rk3{background:linear-gradient(#ffcaa0,#d07a2a);color:#3a1a00}
 .rk4{background:linear-gradient(#d8d8d8,#7a7a7a);color:#222}
-.float-wrap{position:absolute;left:50%;top:0;transform:translateX(-50%);z-index:22;pointer-events:none}
+.float-wrap{position:absolute;left:50%;top:-14px;transform:translateX(-50%);z-index:22;pointer-events:none}
 .float-bean{font-size:26px;font-weight:900;white-space:nowrap;letter-spacing:.5px;opacity:0;
   will-change:transform,opacity;-webkit-text-stroke:1px rgba(0,0,0,.65);text-shadow:0 2px 6px rgba(0,0,0,.95)}
 .float-bean .bean i{width:18px;height:18px}

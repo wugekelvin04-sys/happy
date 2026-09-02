@@ -164,7 +164,8 @@ class SanguoGame {
     }
     this.mid = document.createElement('div'); this.mid.className = 'center-zone';
     b.appendChild(this.mid);
-    this.anchors = [$('.me-bar'), this.seats[1], this.seats[2], this.seats[3], this.seats[4]];
+    /* 飞豆用各家的牌区当起终点，视线在哪豆就从哪飞 */
+    this.anchors = [this.slots[0], this.slots[1], this.slots[2], this.slots[3], this.slots[4]];
   }
   renderCamps() {
     this.mid.innerHTML = '';
@@ -194,7 +195,7 @@ class SanguoGame {
         const own = this.hands[0].filter(c => this.sel.has(c.id));
         if (own.length === need) {
           const e = sgEval5(own.concat(this.pubs[ci]));
-          bx.innerHTML = '<b>' + e.name + '</b> <b class="m">×' + e.mult + '</b>';
+          bx.innerHTML = '<b class="fx-name">' + e.name + '</b> <b class="m">×' + e.mult + '</b>';
         } else bx.innerHTML = '<span style="color:#ffd7a8">还需 ' + (need - own.length) + ' 张</span>';
       } else bx.innerHTML = '&nbsp;';
       d.appendChild(bx);
@@ -308,22 +309,34 @@ class SanguoGame {
     });
     await sleep(cells.length * S + D * 2 + 40);
   }
-  /* 名次徽章 + 牌型（+ 输赢豆） */
-  setTag(i, play, rank, delta) {
+  /* 名次徽章 + 牌型（+ 输赢豆）。名次越靠前烧得越旺，
+     强度按「已开牌人数里的倒排位置」算：第 1 名满格，最后一名最弱。 */
+  setTag(i, play, rank, delta, revealedN) {
     const tag = this.slots[i].querySelector('.reveal-tag');
     if (!tag) return;
-    const first = tag.style.visibility === 'hidden';
-    const changed = !first && this.shownRank && this.shownRank[i] !== rank;
+    const firstShow = tag.style.visibility === 'hidden';
+    const changed = !firstShow && this.shownRank && this.shownRank[i] !== rank;
     this.shownRank = this.shownRank || {};
     this.shownRank[i] = rank;
     tag.style.visibility = 'visible';
     tag.className = 'reveal-tag' + (rank === 1 ? ' first' : '');
-    tag.innerHTML = '<span class="rank-badge rank-big rk' + Math.min(4, rank) + '">' + rank + '</span>'
+    const n = Math.max(1, revealedN || 5);
+    const fire = Math.max(0, Math.min(1, (n - rank + 1) / n));      // 倒排 → 0~1
+    tag.style.setProperty('--fire', fire.toFixed(2));
+    let html = '<div class="fire"></div>';
+    const embers = fire >= .55 ? Math.round(fire * 5) : 0;          // 烧得旺才冒火星
+    for (let k = 0; k < embers; k++) {
+      const x = (k - (embers - 1) / 2) * 13;
+      html += '<div class="ember" style="left:calc(50% + ' + x + 'px);--ex:' + Math.round((Math.random() - .5) * 22)
+        + 'px;animation-delay:' + (k * .22).toFixed(2) + 's;animation-duration:' + (1.2 + Math.random() * .6).toFixed(2) + 's"></div>';
+    }
+    html += '<span class="rank-badge rank-big rk' + Math.min(4, rank) + '">' + rank + '</span>'
       + '<span class="cn2">' + SG_CAMPS[play.camp].n + '</span>'
-      + '<b class="gold-txt">' + play.ev.name + '</b>'
+      + '<b class="fx-name lg">' + play.ev.name + '</b>'
       + (delta ? '<b class="amt" style="color:' + (delta > 0 ? '#7dffae' : '#ff8272') + '">'
         + (delta > 0 ? '+' : '') + fmt(delta) + '</b>' : '');
-    if (first) anim(tag, { opacity: [0, 1], scale: [.6, 1] },
+    tag.innerHTML = html;
+    if (firstShow) anim(tag, { opacity: [0, 1], scale: [.6, 1] },
       { duration: .34, ease: MO ? Motion.backOut : 'ease-out' });
     else if (changed) {                       // 名次被后面的人挤动了 → 弹一下提示
       anim(tag, { scale: [1, 1.28, 1] }, { duration: .42, ease: 'ease-out' });
@@ -371,11 +384,11 @@ class SanguoGame {
       if (this.c.over) return;
       revealed.push(i);
       const rk = this.rankOf(revealed, plays);
-      revealed.forEach(j => this.setTag(j, plays[j], rk[j], 0));
+      revealed.forEach(j => this.setTag(j, plays[j], rk[j], 0, revealed.length));
       const lead = revealed.filter(j => rk[j] === 1)[0];
       head.innerHTML = '<span class="gold-txt">第 ' + this.round + ' 轮 · 亮牌 ' + revealed.length + '/5</span>'
         + '　<span style="font-size:11px">暂列第一：' + (lead === 0 ? '我' : this.P[lead].name)
-        + ' <b class="gold-txt">' + plays[lead].ev.name + ' ×' + plays[lead].ev.mult + '</b></span>';
+        + ' <b class="fx-name">' + plays[lead].ev.name + '</b> <b class="gold-txt">×' + plays[lead].ev.mult + '</b></span>';
       await sleep(i === 4 ? 320 : 460);
     }
     if (this.c.over) return;
@@ -401,12 +414,12 @@ class SanguoGame {
       const share = Math.floor(pay / winners.length);
       winners.forEach((w, k) => rd[w] += (k === 0 ? pay - share * (winners.length - 1) : share));
     }
-    head.innerHTML = '<span class="gold-txt" style="font-size:14px">冠军 ' + plays[win].ev.name + ' ×' + winMult + '</span>'
+    head.innerHTML = '<span style="font-size:14px">冠军 <b class="fx-name lg">' + plays[win].ev.name + '</b> <b class="gold-txt">×' + winMult + '</b></span>'
       + '<div style="font-size:10.5px;margin-top:2px;color:#ffb3a7">'
       + (sameCamp ? '同阵营 ' + sameCamp + ' 人 → 暴击×' + critM + '　' : '')
       + (sameType ? '同牌型 ' + sameType + ' 人 → 杀×' + killM : '')
       + (!sameCamp && !sameType ? '名次倍率 32/24/12/4' : '') + '</div>';
-    for (let i = 0; i < 5; i++) this.setTag(i, plays[i], rank[i], rd[i]);
+    for (let i = 0; i < 5; i++) this.setTag(i, plays[i], rank[i], rd[i], 5);
     await sleep(800);
     if (this.c.over) return;
     beanFlow(this.anchors, rd);

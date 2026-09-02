@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -452,49 +452,70 @@ async function flyIntoHand(card, fromRect, handEl, cw) {
   await flyCards([card], fromRect, to, { step: 0, cw: cw || 42 });
   el.style.visibility = '';
 }
-/* 赢家高亮：独立光圈层，只动 opacity/scale */
-function pulseRingRect(r) {
+/* 起终点光圈：赢家金色、输家红色。只动 opacity/scale */
+function pulseRingRect(r, kind) {
   if (!r || REDUCED) return;
   const d = document.createElement('div');
-  d.className = 'pulse-ring';
-  d.style.cssText = 'left:' + (r.left - 3) + 'px;top:' + (r.top - 3) + 'px;'
-    + 'width:' + (r.width + 6) + 'px;height:' + (r.height + 6) + 'px';
+  d.className = 'pulse-ring' + (kind === 'lose' ? ' lose' : '');
+  d.style.cssText = 'left:' + (r.left - 4) + 'px;top:' + (r.top - 4) + 'px;'
+    + 'width:' + (r.width + 8) + 'px;height:' + (r.height + 8) + 'px';
   $('#flyLayer').appendChild(d);
-  removeAfter(d, anim(d, { opacity: [0, 1, 0], scale: [.92, 1.04, 1.16] }, { duration: .9, ease: EASE_OUT }));
+  removeAfter(d, anim(d, { opacity: [0, 1, 0], scale: [.9, 1.05, 1.2] }, { duration: 1, ease: EASE_OUT }));
 }
 const pulseRing = el => { if (el) pulseRingRect(rectOf(el)); };
-/* 欢乐豆从输家飞到赢家：节点数压到 6 个以内 */
-function flyBeansRect(a, b, amount, streams) {
+/* 按输赢豆的多少决定飞豆的「规模」：颗数、大小、飞行时间、散开幅度都跟着变。
+   既看绝对数量级（几百 vs 几万），也看这次结算里的相对大小（谁付得最多）。 */
+function beanScale(amount, ref, streams) {
+  const rel = ref ? Math.min(1, amount / ref) : .5;
+  const mag = Math.min(1, Math.log10(Math.max(10, amount)) / 5);   // 100 豆≈.4，10 万≈1
+  const t = Math.max(rel * .85, mag * .9);
+  const div = streams > 6 ? 2.2 : streams > 3 ? 1.6 : 1;
+  return {
+    t: t,
+    n: Math.max(3, Math.round((4 + t * 17) / div)),
+    size: Math.round(14 + t * 13),
+    dur: .95 + t * .35,
+    arcK: .18 + t * .16
+  };
+}
+/* 欢乐豆从输家飞到赢家：走一条抛物线，起点冒出、终点收拢，
+   这样一眼能看出豆是从谁那儿飞到谁那儿的。 */
+function flyBeansRect(a, b, amount, streams, ref) {
   if (!a || !b || REDUCED) return;
   const layer = $('#flyLayer');
-  const cap = streams > 4 ? 3 : streams > 2 ? 4 : 6;      // 股数多时每股少放几颗，保持总节点数可控
-  const n = Math.max(2, Math.min(cap, Math.round(Math.log10(Math.max(10, Math.abs(amount))) * 1.6)));
-  const ax = a.left + a.width / 2 - 8, ay = a.top + a.height / 2 - 8;
-  const dx = (b.left + b.width / 2 - 8) - ax, dy = (b.top + b.height / 2 - 8) - ay;
+  const sc = beanScale(amount, ref, streams || 1);
+  const n = sc.n, half = sc.size / 2;
+  const ax = a.left + a.width / 2 - half, ay = a.top + a.height / 2 - half;
+  const dx = (b.left + b.width / 2 - half) - ax, dy = (b.top + b.height / 2 - half) - ay;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len, ny = dx / len;                 // 与飞行方向垂直，用来做抛物线弧度
+  const arc = Math.min(110, len * sc.arcK);
   const frag = document.createDocumentFragment(), els = [];
   for (let i = 0; i < n; i++) {
     const d = document.createElement('div');
     d.className = 'fly-bean';
-    d.style.left = ax + 'px'; d.style.top = ay + 'px';
+    d.style.cssText = 'left:' + ax + 'px;top:' + ay + 'px;width:' + sc.size + 'px;height:' + sc.size + 'px';
     frag.appendChild(d); els.push(d);
   }
   layer.appendChild(frag);
   els.forEach((d, i) => {
-    const jx = (Math.random() - .5) * 40, jy = (Math.random() - .5) * 30;
+    const spread = n > 1 ? (i / (n - 1) - .5) * 2 : 0;  // -1 ~ 1，让整串豆散开
+    const k = 1 + spread * .45;
+    const mx = dx * .5 + nx * arc * k, my = dy * .5 + ny * arc * k;
     removeAfter(d, anim(d, {
-      x: [0, dx * .35 + jx, dx], y: [0, dy * .35 + jy, dy],
-      scale: [.5, 1, .55], opacity: [0, 1, 0]
-    }, { duration: .78, delay: i * .055, ease: EASE_OUT }));
+      x: [0, mx, dx], y: [0, my, dy],
+      scale: [.3, 1.15, .45], opacity: [0, 1, 1, 0]
+    }, { duration: sc.dur, delay: i * (.42 / n), ease: EASE_OUT }));
   });
 }
 function flyBeans(fromEl, toEl, amount) {
   if (!fromEl || !toEl) return;
   const a = rectOf(fromEl), b = rectOf(toEl);
-  flyBeansRect(a, b, amount); pulseRingRect(b);
+  pulseRingRect(a, 'lose'); flyBeansRect(a, b, amount, 1, amount); pulseRingRect(b);
 }
 /* 按每家的净输赢播放飞豆。
    同一次结算里可能有多个赢家和多个输家（比如 2 人赢 2 人输），
-   所以每个输家的豆按各赢家的赢豆比例拆成多股分别飞过去。
+   每个输家的豆按各赢家的赢豆比例拆成多股分别飞过去。
    所有座位的坐标先一次读完，避免反复触发同步重排。 */
 function beanFlow(anchors, deltas) {
   const wins = [], loses = [];
@@ -503,13 +524,15 @@ function beanFlow(anchors, deltas) {
   const rects = anchors.map(e => e ? rectOf(e) : null);   // 只读这一次
   const totalWin = wins.reduce((s, w) => s + w[1], 0) || 1;
   const streams = wins.length * loses.length;
+  const ref = Math.max.apply(null, deltas.map(Math.abs));  // 本次结算里最大的一笔当满量程
+  loses.forEach(([li]) => pulseRingRect(rects[li], 'lose'));   // 先标出「豆从这儿出去」
   loses.forEach(([li, la]) => {
     wins.forEach(([wi, wa]) => {
       const share = la * (wa / totalWin);
-      if (share > 0) flyBeansRect(rects[li], rects[wi], share, streams);
+      if (share > 0) flyBeansRect(rects[li], rects[wi], share, streams, ref);
     });
   });
-  wins.forEach(([wi]) => pulseRingRect(rects[wi]));
+  setTimeout(() => wins.forEach(([wi]) => pulseRingRect(rects[wi])), 780);  // 豆快到了再标终点
 }
 
 /* 结算封顶：每次结算不能超过场次封顶，也不能超过输家全部欢乐豆 */

@@ -142,7 +142,8 @@ class DouxianGame {
     }
     this.tip = document.createElement('div'); this.tip.className = 'center-zone';
     b.appendChild(this.tip);
-    this.anchors = [$('.me-bar'), this.seats[1], this.seats[2], this.seats[3]];
+    /* 飞豆用各家的三界牌区当起终点 */
+    this.anchors = [this.slots[0], this.slots[1], this.slots[2], this.slots[3]];
   }
   realmEl(pi, zi, mini, reveal) {
     const cards = this.field[pi][zi], size = DX_ZONES[zi].size;
