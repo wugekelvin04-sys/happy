@@ -234,8 +234,9 @@ class BaqueGame {
     this.slots[0] = mkPlaySlot(R[0]); b.appendChild(this.slots[0]);
     this.center = document.createElement('div'); this.center.className = 'center-zone';
     b.appendChild(this.center);
-    /* 自己用手牌区、别家用座位牌当飞豆的起终点 */
-    this.anchors = [this.c.hand, this.seats[1], this.seats[2], this.seats[3]];
+    /* 飞豆的起终点用各家显示豆数的地方（账户） */
+    this.anchors = [$('.me-bar .bean'), this.seats[1].querySelector('.bean'),
+      this.seats[2].querySelector('.bean'), this.seats[3].querySelector('.bean')];
   }
   render() {
     for (let i = 1; i < 4; i++) {
@@ -568,10 +569,9 @@ class BaqueGame {
     for (let j = 0; j < 4; j++) this.delta[j] += rd[j];
     this.hus[i]++;
     if (i === 0) bigWin('胡！' + hu.name); else say(this.seats[i], '胡！' + hu.name);
-    beanFlow(this.anchors, rd);
-    for (let j = 0; j < 4; j++) floatBean(this.anchors[j], rd[j]);
     this.render();
-    await sleep(1400);
+    const ms = settleBeans(this.anchors, rd);
+    await sleep(ms || 600);
     if (this.c.over) return;
     this.roundEnd(i, hu, tags.join(' · '), mult * times, rd);
   }

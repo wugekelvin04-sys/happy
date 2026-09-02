@@ -164,8 +164,10 @@ class SanguoGame {
     }
     this.mid = document.createElement('div'); this.mid.className = 'center-zone';
     b.appendChild(this.mid);
-    /* 飞豆用各家的牌区当起终点，视线在哪豆就从哪飞 */
-    this.anchors = [this.slots[0], this.slots[1], this.slots[2], this.slots[3], this.slots[4]];
+    /* 飞豆的起终点用各家显示豆数的地方（账户），看得出是从谁的账户转到谁的账户 */
+    this.anchors = [$('.me-bar .bean'),
+      this.seats[1].querySelector('.bean'), this.seats[2].querySelector('.bean'),
+      this.seats[3].querySelector('.bean'), this.seats[4].querySelector('.bean')];
   }
   renderCamps() {
     this.mid.innerHTML = '';
@@ -309,6 +311,33 @@ class SanguoGame {
     });
     await sleep(cells.length * S + D * 2 + 40);
   }
+  /* 沿名次牌外围生成一圈火舌：底边一排 + 两端各一簇，越靠前的名次越高越密 */
+  flamesHtml(fire) {
+    if (fire <= .04) return '';
+    const n = Math.round(5 + fire * 7);            // 5 ~ 12 条火舌
+    let h = '<div class="flames">';
+    for (let k = 0; k < n; k++) {
+      const p = n > 1 ? (k + .5) / n : .5;         // 沿底边均匀分布
+      const edge = Math.abs(p - .5) * 2;           // 中间高、两头矮
+      const hgt = Math.round((26 + fire * 34) * (1 - edge * .38) * (.75 + Math.random() * .5));
+      const wid = Math.round(hgt * (.42 + Math.random() * .16));   // 细长才像火舌
+      const left = (p * 100).toFixed(1);
+      const dur = (.6 + Math.random() * .5).toFixed(2);
+      const dly = (Math.random() * .8).toFixed(2);
+      const bot = Math.round(-1 + Math.random() * 5);
+      const alt = k % 2 ? ' alt' : '';
+      h += '<div class="flame' + alt + '" style="left:calc(' + left + '% - ' + (wid / 2) + 'px);bottom:' + bot
+        + 'px;width:' + wid + 'px;height:' + hgt + 'px;animation-duration:' + dur
+        + 's;animation-delay:-' + dly + 's"></div>';
+      if (fire > .45) {                             // 旺的时候叠一层更亮更细的内焰
+        const w2 = Math.round(wid * .5), h2 = Math.round(hgt * .58);
+        h += '<div class="flame inner' + alt + '" style="left:calc(' + left + '% - ' + (w2 / 2) + 'px);bottom:' + bot
+          + 'px;width:' + w2 + 'px;height:' + h2 + 'px;animation-duration:' + (+dur * .78).toFixed(2)
+          + 's;animation-delay:-' + dly + 's"></div>';
+      }
+    }
+    return h + '</div>';
+  }
   /* 名次徽章 + 牌型（+ 输赢豆）。名次越靠前烧得越旺，
      强度按「已开牌人数里的倒排位置」算：第 1 名满格，最后一名最弱。 */
   setTag(i, play, rank, delta, revealedN) {
@@ -323,7 +352,7 @@ class SanguoGame {
     const n = Math.max(1, revealedN || 5);
     const fire = Math.max(0, Math.min(1, (n - rank + 1) / n));      // 倒排 → 0~1
     tag.style.setProperty('--fire', fire.toFixed(2));
-    let html = '<div class="fire"></div>';
+    let html = '<div class="fire-base"></div>' + this.flamesHtml(fire);
     const embers = fire >= .55 ? Math.round(fire * 5) : 0;          // 烧得旺才冒火星
     for (let k = 0; k < embers; k++) {
       const x = (k - (embers - 1) / 2) * 13;
@@ -420,11 +449,17 @@ class SanguoGame {
       + (sameType ? '同牌型 ' + sameType + ' 人 → 杀×' + killM : '')
       + (!sameCamp && !sameType ? '名次倍率 32/24/12/4' : '') + '</div>';
     for (let i = 0; i < 5; i++) this.setTag(i, plays[i], rank[i], rd[i], 5);
-    await sleep(800);
+    await sleep(700);
     if (this.c.over) return;
-    beanFlow(this.anchors, rd);
-    for (let i = 0; i < 5; i++) floatBean(this.anchors[i], rd[i]);
-    await sleep(1000);
+    /* 豆从输家的账户转到赢家的账户，到账时再滚动豆数 */
+    const ms = settleBeans(this.anchors, rd, () => {
+      for (let i = 0; i < 5; i++) {
+        const el = i === 0 ? $('#tMyBeans') : this.seats[i].querySelector('.bn');
+        animNumber(el, Math.max(0, this.P[i].beans + this.delta[i]),
+          Math.max(0, this.P[i].beans + this.delta[i] + rd[i]), 900);
+      }
+    });
+    await sleep(ms);
     if (this.c.over) return;
 
     /* 打出的牌与公共牌进入弃牌堆，下回合与牌堆洗混 */
@@ -437,7 +472,7 @@ class SanguoGame {
     for (let i = 0; i < 5; i++) this.delta[i] += rd[i];
     for (let i = 1; i < 5; i++) this.seats[i].querySelector('.bn').textContent = fmt(Math.max(0, this.P[i].beans + this.delta[i]));
     $('#tMyBeans').textContent = fmt(Math.max(0, this.P[0].beans + this.delta[0]));
-    await sleep(1500);
+    await sleep(900);
     if (this.c.over) return;
     $('#table').classList.remove('reveal');
     this.round++;

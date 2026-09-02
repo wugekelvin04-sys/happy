@@ -142,8 +142,9 @@ class DouxianGame {
     }
     this.tip = document.createElement('div'); this.tip.className = 'center-zone';
     b.appendChild(this.tip);
-    /* 飞豆用各家的三界牌区当起终点 */
-    this.anchors = [this.slots[0], this.slots[1], this.slots[2], this.slots[3]];
+    /* 飞豆的起终点用各家显示豆数的地方（账户） */
+    this.anchors = [$('.me-bar .bean'), this.seats[1].querySelector('.bean'),
+      this.seats[2].querySelector('.bean'), this.seats[3].querySelector('.bean')];
   }
   realmEl(pi, zi, mini, reveal) {
     const cards = this.field[pi][zi], size = DX_ZONES[zi].size;
@@ -434,14 +435,15 @@ class DouxianGame {
       await this.winFx(rd);
       if (this.c.over) return;
       const before = total.slice();
-      for (let i = 0; i < 4; i++) {
-        total[i] += rd[i];
-        const el = i === 0 ? $('#tMyBeans') : this.seats[i].querySelector('.bn');
-        animNumber(el, this.P[i].beans + this.delta[i] + before[i], this.P[i].beans + this.delta[i] + total[i], 1000);
-        floatBean(this.beanAnchor(i), rd[i]);
-      }
-      beanFlow(this.anchors, rd);
-      await sleep(2000);
+      for (let i = 0; i < 4; i++) total[i] += rd[i];
+      const ms = settleBeans(this.anchors, rd, () => {
+        for (let i = 0; i < 4; i++) {
+          const el = i === 0 ? $('#tMyBeans') : this.seats[i].querySelector('.bn');
+          animNumber(el, this.P[i].beans + this.delta[i] + before[i],
+            this.P[i].beans + this.delta[i] + total[i], 900);
+        }
+      });
+      await sleep(ms);
       if (this.c.over) return;
       this.clearBanners();
     }
@@ -470,14 +472,15 @@ class DouxianGame {
       this.tip.innerHTML = '<div class="gold-txt" style="font-size:15px;letter-spacing:3px">全　胜</div>'
         + '<div class="zone-line">' + sweepWin.map(i => i === 0 ? '我' : this.P[i].name).join('、') + ' 三界灵力全面压制，额外结算一次</div>';
       const before = total.slice();
-      for (let i = 0; i < 4; i++) {
-        total[i] += sd[i];
-        const el = i === 0 ? $('#tMyBeans') : this.seats[i].querySelector('.bn');
-        animNumber(el, this.P[i].beans + this.delta[i] + before[i], this.P[i].beans + this.delta[i] + total[i], 1000);
-        floatBean(this.beanAnchor(i), sd[i]);
-      }
-      beanFlow(this.anchors, sd);
-      await sleep(2200);
+      for (let i = 0; i < 4; i++) total[i] += sd[i];
+      const ms2 = settleBeans(this.anchors, sd, () => {
+        for (let i = 0; i < 4; i++) {
+          const el = i === 0 ? $('#tMyBeans') : this.seats[i].querySelector('.bn');
+          animNumber(el, this.P[i].beans + this.delta[i] + before[i],
+            this.P[i].beans + this.delta[i] + total[i], 900);
+        }
+      });
+      await sleep(ms2);
       if (this.c.over) return;
     }
     for (let i = 0; i < 4; i++) this.delta[i] += total[i];

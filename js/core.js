@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.3.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -480,7 +480,7 @@ function beanScale(amount, ref, streams) {
 }
 /* 欢乐豆从输家飞到赢家：走一条抛物线，起点冒出、终点收拢，
    这样一眼能看出豆是从谁那儿飞到谁那儿的。 */
-function flyBeansRect(a, b, amount, streams, ref) {
+function flyBeansRect(a, b, amount, streams, ref, durSec) {
   if (!a || !b || REDUCED) return;
   const layer = $('#flyLayer');
   const sc = beanScale(amount, ref, streams || 1);
@@ -505,7 +505,7 @@ function flyBeansRect(a, b, amount, streams, ref) {
     removeAfter(d, anim(d, {
       x: [0, mx, dx], y: [0, my, dy],
       scale: [.3, 1.15, .45], opacity: [0, 1, 1, 0]
-    }, { duration: sc.dur, delay: i * (.42 / n), ease: EASE_OUT }));
+    }, { duration: durSec || sc.dur, delay: i * (.5 / n), ease: EASE_OUT }));
   });
 }
 function flyBeans(fromEl, toEl, amount) {
@@ -513,27 +513,45 @@ function flyBeans(fromEl, toEl, amount) {
   const a = rectOf(fromEl), b = rectOf(toEl);
   pulseRingRect(a, 'lose'); flyBeansRect(a, b, amount, 1, amount); pulseRingRect(b);
 }
-/* 按每家的净输赢播放飞豆。
-   同一次结算里可能有多个赢家和多个输家（比如 2 人赢 2 人输），
-   每个输家的豆按各赢家的赢豆比例拆成多股分别飞过去。
-   所有座位的坐标先一次读完，避免反复触发同步重排。 */
-function beanFlow(anchors, deltas) {
+/* 结算演示：豆从输家的「账户」飞到赢家的「账户」，分三步走清楚
+   1) 输家亮红圈 + 冒 −N          （看清豆从谁那儿出去）
+   2) 稍等一下再发豆，慢慢飞过去   （看清路线）
+   3) 到账时赢家亮金圈 + 冒 +N，同时豆数滚动
+   anchors 传各家显示豆数的那个元素，deltas 是本次每家的净输赢。
+   返回整段演示需要的毫秒数。 */
+function settleBeans(anchors, deltas, onArrive) {
   const wins = [], loses = [];
   deltas.forEach((d, i) => { if (d > 0) wins.push([i, d]); else if (d < 0) loses.push([i, -d]); });
-  if (!wins.length || !loses.length) return;
-  const rects = anchors.map(e => e ? rectOf(e) : null);   // 只读这一次
+  if (!wins.length || !loses.length) { if (onArrive) onArrive(); return 0; }
+  const rects = anchors.map(e => e ? rectOf(e) : null);   // 坐标只读这一次
   const totalWin = wins.reduce((s, w) => s + w[1], 0) || 1;
   const streams = wins.length * loses.length;
-  const ref = Math.max.apply(null, deltas.map(Math.abs));  // 本次结算里最大的一笔当满量程
-  loses.forEach(([li]) => pulseRingRect(rects[li], 'lose'));   // 先标出「豆从这儿出去」
+  const ref = Math.max.apply(null, deltas.map(Math.abs));
+  const FLY = 1500, LEAD = 420;                          // 飞行时长 / 起飞前的停顿
+
+  /* 1) 先标出「豆从这几家出去」 */
   loses.forEach(([li, la]) => {
-    wins.forEach(([wi, wa]) => {
-      const share = la * (wa / totalWin);
-      if (share > 0) flyBeansRect(rects[li], rects[wi], share, streams, ref);
-    });
+    pulseRingRect(rects[li], 'lose');
+    floatBean(anchors[li], -la);
   });
-  setTimeout(() => wins.forEach(([wi]) => pulseRingRect(rects[wi])), 780);  // 豆快到了再标终点
+  /* 2) 停一下再发豆，让人看清起点 */
+  setTimeout(() => {
+    loses.forEach(([li, la]) => {
+      wins.forEach(([wi, wa]) => {
+        const share = la * (wa / totalWin);
+        if (share > 0) flyBeansRect(rects[li], rects[wi], share, streams, ref, FLY / 1000);
+      });
+    });
+  }, LEAD);
+  /* 3) 到账 */
+  setTimeout(() => {
+    wins.forEach(([wi, wa]) => { pulseRingRect(rects[wi]); floatBean(anchors[wi], wa); });
+    if (onArrive) onArrive();
+  }, LEAD + FLY - 120);
+  return LEAD + FLY + 700;
 }
+/* 兼容旧调用 */
+function beanFlow(anchors, deltas) { settleBeans(anchors, deltas); }
 
 /* 结算封顶：每次结算不能超过场次封顶，也不能超过输家全部欢乐豆 */
 function capPay(amount, loserBeans, cap) {
