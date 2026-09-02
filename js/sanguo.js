@@ -294,7 +294,8 @@ class SanguoGame {
       bk.style.height = Math.round((big ? 50 : 40) * 1.44) + 'px';
       f.appendChild(bk); row.appendChild(f);
     }
-    ensureResultTag(sl, false);   // 名次牌型标 + 输赢豆行，都在牌的上方
+    // 名次牌型标在牌上方；输赢豆贴在牌的内侧，不占一行
+    ensureResultTag(sl, false);
     sl.appendChild(row);
     return row;
   }

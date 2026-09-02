@@ -129,8 +129,11 @@ class DouxianGame {
     [...b.querySelectorAll('.seat-chip,.play-slot,.center-zone')].forEach(e => e.remove());
     b.style.cssText = '';
     this.seats = []; this.slots = [];
-    const CH = [null, { chip: { right: '2px', top: '26%' }, rev: true }, { chip: { left: '50%', top: '2px', tx: -50 } }, { chip: { left: '2px', top: '26%' } }];
-    const ZP = [{ left: '50%', bottom: '1%', tx: -50 }, { right: '2px', top: '46%' }, { left: '50%', top: '23%', tx: -50 }, { left: '2px', top: '46%' }];
+    /* 账户在上、结算标在牌块正上方、牌块在下，三段互不重叠。
+       手机横屏牌桌只有 ~390px 高，账户和牌块之间必须留出标 + 火焰的高度
+       （紧凑档约 44px），否则火会烧到账户小条上。 */
+    const CH = [null, { chip: { right: '2px', top: '19%' }, rev: true }, { chip: { left: '50%', top: '1px', tx: -50 } }, { chip: { left: '2px', top: '19%' } }];
+    const ZP = [{ left: '50%', bottom: '1%', tx: -50 }, { right: '2px', top: '51%' }, { left: '50%', top: '28%', tx: -50 }, { left: '2px', top: '51%' }];
     for (let i = 1; i < 4; i++) {
       const el = mkSeat(this.P[i], CH[i], '<span class="hs"></span>');
       b.appendChild(el); this.seats[i] = el;
@@ -375,9 +378,13 @@ class DouxianGame {
     const sl = this.slots[i];
     if (getComputedStyle(sl).position === 'static') sl.style.position = 'relative';
     let host = sl.querySelector('.pwr-wrap');
-    if (!host) { host = document.createElement('div'); host.className = 'pwr-wrap'; sl.appendChild(host); }
+    if (!host) {
+      host = document.createElement('div');
+      host.className = 'pwr-wrap' + (i === 0 ? ' side' : '');   // 自己这家放左边，避开中央提示
+      sl.appendChild(host);
+    }
     setResultTag(host, {
-      badge: rank, first: rank === 1, fire: rankFire(rank, 4),
+      badge: rank, first: rank === 1, fire: rankFire(rank, 4), sm: true,
       html: '<b class="fx-name lg">' + txt + '</b><span class="pv">' + val + '</span>',
       delta: delta,
     });
@@ -479,11 +486,7 @@ class DouxianGame {
       for (let i = 0; i < 4; i++) total[i] += sd[i];
       /* 全胜也把数字打在各家的标上 */
       const swRk = rankList([0, 1, 2, 3], (a, b) => sd[a] - sd[b]);
-      for (let pi = 0; pi < 4; pi++) if (sd[pi]) setResultTag(this.slots[pi], {
-        badge: null, fire: sd[pi] > 0 ? rankFire(swRk[pi], 4) : 0,
-        html: '<b class="fx-name lg">' + (sd[pi] > 0 ? '全胜' : '全负') + '</b>',
-        first: sd[pi] > 0, delta: sd[pi], atTop: true,
-      });
+      for (let pi = 0; pi < 4; pi++) if (sd[pi]) this.banner(pi, sd[pi] > 0 ? '全胜' : '全负', '', swRk[pi], sd[pi]);
       const ms2 = settleBeans(this.anchors, sd, () => {
         for (let i = 0; i < 4; i++) {
           const el = i === 0 ? $('#tMyBeans') : this.seats[i].querySelector('.bn');

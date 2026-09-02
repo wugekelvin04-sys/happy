@@ -583,10 +583,13 @@ class BaqueGame {
       const sl = this.slots[i]; sl.innerHTML = '';
       sl.style.flexDirection = 'column'; sl.style.gap = '2px';
       setResultTag(sl, {
-        badge: i === winner ? '胡' : null, rk: 1, first: i === winner,
+        badge: i === winner ? '胡' : null, rk: 1, first: i === winner, sm: true,
         fire: i === winner ? 1 : 0,                       // 只有胡牌的那家烧
+        // 番型明细并进胜者的标里 —— 牌桌中间那块正好是上家的牌位，
+        // 再摆一个结算框会把牌盖住
         html: i === winner
-          ? '<b class="fx-name lg">' + hu.name + '</b><span class="pv">' + hu.mult + '番</span>'
+          ? '<span class="col"><b class="fx-name lg">' + hu.name + ' ' + hu.mult + '番</b>'
+            + '<small>' + tagText + '　总倍数 ×' + mult + '</small></span>'
           : '<span style="opacity:.8">未胡</span>',
         delta: rd[i],
       });
@@ -596,14 +599,16 @@ class BaqueGame {
       sl.appendChild(row);
     }
     this.center.innerHTML = '';
-    const box = document.createElement('div');
-    box.style.cssText = 'font-size:12px;background:rgba(0,0,0,.6);border-radius:10px;padding:5px 14px;'
-      + 'border:1px solid rgba(255,215,106,.6);text-align:center;white-space:nowrap';
-    box.innerHTML = winner < 0
-      ? '<span class="gold-txt" style="font-size:14px">流局</span><div style="font-size:11px;margin-top:2px">牌堆摸完，无人胡牌</div>'
-      : '<span class="gold-txt" style="font-size:14px">' + (winner === 0 ? '我' : this.P[winner].name) + ' 胡牌</span>'
-      + '<div style="font-size:11px;margin-top:2px">' + tagText + '　总倍数 <b class="gold-txt">×' + mult + '</b></div>';
-    this.center.appendChild(box);
+    if (winner < 0) {                       // 流局没有胜者标，中间才需要写一句
+      const box = document.createElement('div');
+      box.style.cssText = 'font-size:12px;background:rgba(0,0,0,.6);border-radius:10px;padding:5px 14px;'
+        + 'border:1px solid rgba(255,215,106,.6);text-align:center;white-space:nowrap';
+      box.innerHTML = '<span class="gold-txt" style="font-size:14px">流局</span>'
+        + '<div style="font-size:11px;margin-top:2px">牌堆摸完，无人胡牌</div>';
+      this.center.appendChild(box);
+    } else {
+      toast((winner === 0 ? '我' : this.P[winner].name) + ' 胡牌', 1600);
+    }
     const ms = settleBeans(this.anchors, rd, null, { labels: false });
     await sleep(ms || 400);
     if (this.c.over) return;

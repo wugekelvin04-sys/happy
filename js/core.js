@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.7.2';
+const APP_VERSION = '2.8.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -107,13 +107,16 @@ function bigWin(txt, ms) {
 }
 function openModal(html) { $('#modal').innerHTML = html; $('#mask').classList.add('on'); $('#modal').scrollTop = 0; }
 function closeModal() { $('#mask').classList.remove('on'); }
-/* 强制横屏时 #app 缩进了安全区，露出来的那两条要和当前主题的底色一致，
-   取的是各主题径向渐变最外圈的颜色，和界面边缘接得上。 */
+/* 主题背景画在 #app 上（铺满整屏，安全区那两条也被它盖住，不会有接缝），
+   所以每次切界面要把当前界面的主题类同步给 #app。body 的底色只是兜底。 */
+const THEMES = ['th-lobby', 'th-baque', 'th-douxian', 'th-sanguo'];
 const PAGE_BG = { 'th-lobby': '#061a11', 'th-baque': '#0d2f5e', 'th-douxian': '#16264a', 'th-sanguo': '#3a120a' };
 function show(id) {
   $$('.screen').forEach(s => s.classList.toggle('on', s.id === id));
-  const on = $('.screen.on');
-  if (on) for (const k in PAGE_BG) if (on.classList.contains(k)) document.body.style.background = PAGE_BG[k];
+  const on = $('.screen.on'), app = $('#app');
+  if (!on || !app) return;
+  const th = THEMES.find(k => on.classList.contains(k));
+  if (th) { app.className = th; document.body.style.background = PAGE_BG[th]; }
 }
 
 /* ---------------- 强制刷新 / 版本信息 ---------------- */
@@ -395,13 +398,13 @@ function mkPlaySlot(cfg) {
    于是「视口坐标」和「#app 内部坐标」差了一个 90° 旋转 + 一个安全区偏移。
    飞豆、光圈这些都按 #app 内部坐标定位，所以量到的 rect 要换算回去：
    视口(vx,vy) → 内部(x,y) = (vy − 上安全区, 视口宽 − 右安全区 − vx)。 */
-let ROT = null;                     // 旋转态下记着安全区，rectOf 要用
+let ROT = false;                    // 是否处于强制横屏（旋转）状态
 function rectOf(el) {
   const r = el.getBoundingClientRect();
   if (!ROT) return r;
-  const x0 = ROT.t, y0 = window.innerWidth - ROT.r;
-  return { left: r.top - x0, top: y0 - r.left - r.width, width: r.height, height: r.width,
-    right: r.top - x0 + r.height, bottom: y0 - r.left };
+  const Vw = window.innerWidth;     // #app 铺满整屏，只差一个 90° 旋转
+  return { left: r.top, top: Vw - r.left - r.width, width: r.height, height: r.width,
+    right: r.top + r.height, bottom: Vw - r.left };
 }
 /* ---------------------------------------------------------------
    动画统一走 Motion（js/vendor/motion.js，MIT）。
@@ -483,12 +486,19 @@ function flyCards(cards, fromRect, toRect, opts) {
 }
 /* 一张牌飞进手牌里它排好序之后的位置 */
 async function flyIntoHand(card, fromRect, handEl, cw) {
-  const el = handEl.querySelector('[data-id="' + card.id + '"]');
+  const sel = '[data-id="' + card.id + '"]';
+  const el = handEl.querySelector(sel);
   if (!el) return;
   const to = rectOf(el);
-  el.style.visibility = 'hidden';
-  await flyCards([card], fromRect, to, { step: 0, cw: cw || 42 });
-  el.style.visibility = '';
+  el.style.visibility = 'hidden';          // 先藏起来，等飞过去的那张落位再显出来
+  try {
+    await flyCards([card], fromRect, to, { step: 0, cw: cw || 42 });
+  } finally {
+    // 飞行途中手牌可能被重排过，按 id 再找一遍；只靠旧引用会把牌留在隐藏状态，
+    // 手牌里就空出一个缝。
+    el.style.visibility = '';
+    handEl.querySelectorAll(sel).forEach(e => { e.style.visibility = ''; });
+  }
 }
 /* 起终点光圈：赢家金色、输家红色。只动 opacity/scale */
 function pulseRingRect(r, kind) {
@@ -564,7 +574,7 @@ function rankFire(rank, n) {
   n = Math.max(1, n || 4);
   return Math.max(0, Math.min(1, (n - rank + 1) / n));
 }
-function ensureResultTag(host, atTop) {
+function ensureResultTag(host, atTop, side) {
   let wrap = host.querySelector(':scope > .tag-wrap');
   if (wrap) return wrap;
   wrap = document.createElement('div');
@@ -575,20 +585,22 @@ function ensureResultTag(host, atTop) {
   if (Math.random() < .5) wrap.dataset.mir = '1';      // 左右翻一下，几家的火不至于一模一样
   const amt = document.createElement('div');
   amt.className = 'amt-line'; amt.style.visibility = 'hidden';
+  if (side) amt.dataset.side = side;
   if (atTop) { host.insertBefore(amt, host.firstChild); host.insertBefore(wrap, host.firstChild); }
   else { host.appendChild(wrap); host.appendChild(amt); }
   return wrap;
 }
-/* o = { badge, rk, html, fire, delta, first, atTop }
+/* o = { badge, rk, html, fire, delta, first, atTop, sm, amtSide }
    badge 为 null 时不画徽章；徽章变了会弹一下（名次被后面的人挤动时用）。 */
 function setResultTag(host, o) {
-  const wrap = ensureResultTag(host, o.atTop);
+  const wrap = ensureResultTag(host, o.atTop, o.amtSide);
   const tag = wrap.querySelector('.reveal-tag');
   const firstShow = wrap.style.visibility === 'hidden';
   const key = o.badge == null ? '' : String(o.badge);
   const bumped = !firstShow && wrap.dataset.badge !== undefined && wrap.dataset.badge !== key;
   wrap.dataset.badge = key;
   wrap.style.visibility = 'visible';
+  wrap.className = 'tag-wrap' + (o.sm ? ' sm' : '');
   tag.className = 'reveal-tag' + (o.first ? ' first' : '');
   tag.innerHTML = (o.badge == null ? ''
     : '<span class="rank-badge rank-big rk' + (o.rk || Math.min(4, +o.badge || 1)) + '">' + o.badge + '</span>')
@@ -601,12 +613,17 @@ function setResultTag(host, o) {
   if (amt) {
     if (o.delta) {
       const isNew = amt.style.visibility === 'hidden';
-      amt.className = 'amt-line ' + (o.delta > 0 ? 'up' : 'dn');
+      amt.className = 'amt-line ' + (o.delta > 0 ? 'up' : 'dn') + (o.sm ? ' sm' : '')
+        + (amt.dataset.side ? ' at-' + amt.dataset.side : '');
       amt.style.visibility = 'visible';
       amt.textContent = (o.delta > 0 ? '+' : '') + fmt(o.delta);
       if (isNew) anim(amt, { opacity: [0, 1], scale: [.5, 1.25, 1] },
         { duration: .5, ease: MO ? Motion.backOut : 'ease-out' });
-    } else { amt.style.visibility = 'hidden'; amt.textContent = ''; }
+    } else {
+      amt.className = 'amt-line' + (o.sm ? ' sm' : '')
+        + (amt.dataset.side ? ' at-' + amt.dataset.side : '');
+      amt.style.visibility = 'hidden'; amt.textContent = '';
+    }
   }
   if (firstShow) anim(wrap, { opacity: [0, 1], scale: [.6, 1] },
     { duration: .34, ease: MO ? Motion.backOut : 'ease-out' });
@@ -742,18 +759,22 @@ function fitLayout() {
   document.body.classList.add('land');            // 永远按横屏排版
   const app = $('#app');
   if (!app) return;
-  if (!rot) { ROT = null; app.style.cssText = ''; return; }
+  const st = document.body.style;
+  if (!rot) {
+    ROT = false; app.style.width = ''; app.style.height = '';
+    ['--rot-t', '--rot-r', '--rot-b', '--rot-l'].forEach(k => st.removeProperty(k));
+    return;
+  }
+  ROT = true;
+  app.style.width = vh + 'px';                     // 旋转 90°，宽高对调；铺满整屏
+  app.style.height = vw + 'px';
   const si = safeInsets();
   // 转过来之后：屏幕上边 = 界面左边（灵动岛那条），屏幕下边 = 界面右边（home 条）。
   // 灵动岛这侧留个底，env 万一取不到 0 也不至于压住头像。
-  const e = { t: Math.max(si.t, 34), b: Math.max(si.b, 12),
-    l: Math.max(si.l, 4), r: Math.max(si.r, 4) };
-  ROT = e;
-  const uw = vw - e.l - e.r, uh = vh - e.t - e.b;   // 安全区里可用的那块
-  app.style.width = uh + 'px';                     // 旋转 90°，宽高对调
-  app.style.height = uw + 'px';
-  app.style.left = ((e.l + vw - e.r) / 2) + 'px';  // 安全区的中心，不是屏幕中心
-  app.style.top = ((e.t + vh - e.b) / 2) + 'px';
+  st.setProperty('--rot-l', Math.max(si.t, 34) + 'px');
+  st.setProperty('--rot-r', Math.max(si.b, 12) + 'px');
+  st.setProperty('--rot-t', Math.max(si.r, 4) + 'px');
+  st.setProperty('--rot-b', Math.max(si.l, 4) + 'px');
 }
 function bootstrap() {
   S = loadSave();

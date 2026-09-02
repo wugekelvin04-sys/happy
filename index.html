@@ -39,23 +39,27 @@ body{
 #app{position:fixed;inset:0}
 /* 强制横屏：设备竖着拿的时候，把整个界面转 90° 并交换宽高，
    而不是切换成竖屏排版。iOS 不支持 screen.orientation.lock，只能这么做。
-   安全区不能用 padding 让位 —— .screen / .me-bar / 座位都是 position:absolute，
-   撑满的是 padding box，加 padding 等于没加。改成直接把 #app 这个盒子缩小、
-   摆到安全区里面（宽高和位置由 fitLayout 按旋转后的方向算好）。 */
-body.force-rot #app{inset:auto;transform-origin:50% 50%;
+   #app 铺满整屏并且背景画在它身上 —— 安全区让位是把 .screen 这个布局框
+   缩进去，不是把 #app 缩小，这样边上就不会露出一条颜色对不上的底。
+   安全区跟着转 90°：界面的左边其实是屏幕的上边（灵动岛），右边是屏幕的下边。
+   注意不能用 padding：.screen / .me-bar / 座位都是 position:absolute，
+   撑满的是包含块的 padding box，加 padding 等于没加，只能改 top/right/bottom/left。 */
+body.force-rot #app{inset:auto;left:50%;top:50%;transform-origin:50% 50%;
   transform:translate(-50%,-50%) rotate(90deg)}
+body.force-rot .screen{top:var(--rot-t,4px);right:var(--rot-r,12px);
+  bottom:var(--rot-b,4px);left:var(--rot-l,34px);
+  padding-left:0;padding-right:0}
 body.force-rot{--safe-top:6px;--safe-bot:6px}
-body.force-rot .screen{padding-left:0;padding-right:0}
 .screen{position:absolute;inset:0;display:none;flex-direction:column;
   padding-top:var(--safe-top);padding-bottom:var(--safe-bot);
   padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
 .screen.on{display:flex}
 
 /* ================= 三套主题 ================= */
-.th-lobby{background:radial-gradient(ellipse at 50% 0%,#1d7a4c,#0a2f1e 70%,#061a11)}
-.th-baque{background:radial-gradient(ellipse at 50% 34%,#4f9de0 0%,#1f5fa8 45%,#0d2f5e 100%)}
-.th-douxian{background:radial-gradient(ellipse at 50% 26%,#8fb6e6 0%,#3f6aa8 42%,#16264a 100%)}
-.th-sanguo{background:radial-gradient(ellipse at 50% 32%,#c8894a 0%,#8a3b22 45%,#3a120a 100%)}
+#app.th-lobby{background:radial-gradient(ellipse at 50% 0%,#1d7a4c,#0a2f1e 70%,#061a11)}
+#app.th-baque{background:radial-gradient(ellipse at 50% 34%,#4f9de0 0%,#1f5fa8 45%,#0d2f5e 100%)}
+#app.th-douxian{background:radial-gradient(ellipse at 50% 26%,#8fb6e6 0%,#3f6aa8 42%,#16264a 100%)}
+#app.th-sanguo{background:radial-gradient(ellipse at 50% 32%,#c8894a 0%,#8a3b22 45%,#3a120a 100%)}
 
 /* ================= 控件 ================= */
 /* 按钮：扁平实色，无渐变、无内高光、无投影 */
@@ -273,10 +277,25 @@ body.land .match-wrap{gap:10px;padding:8px}
 .mini-realms .rs{gap:1px}
 .slot.sm{width:24px;height:35px}
 
+/* 结算标的紧凑档：斗仙牌四家 + 三界，手机上竖向只有 393px，
+   用三国那个尺寸的标会把账户和牌全压住。 */
+.tag-wrap.sm .reveal-tag{font-size:14px;padding:2px 9px;gap:5px;border-radius:9px;letter-spacing:0}
+.tag-wrap.sm .rank-badge.rank-big{width:21px;height:21px;font-size:13px}
+.tag-wrap.sm .fx-name.lg{font-size:1em;letter-spacing:1px}
+.tag-wrap.sm .pv{font-size:13px;margin-left:1px}
+/* 标里带第二行小字（八雀把番型明细并进来，中间就不用再摆一个结算框了） */
+.reveal-tag .col{display:flex;flex-direction:column;align-items:flex-start;line-height:1.2}
+.reveal-tag .col small{font-size:10px;font-weight:600;color:#ffd9a8;opacity:.9;letter-spacing:0}
+.tag-wrap.sm .flames{top:-26px;right:-21px;bottom:-17px;left:-21px}
+.amt-line.sm{font-size:15px;min-height:18px;-webkit-text-stroke:.6px rgba(0,0,0,.6);margin:0}
+
 /* 斗仙牌：斗法横幅 / 名次 / 飘豆动画 */
 /* 斗仙的结算标浮在这一家牌块的正上方，不挤占行内位置 */
 .pwr-wrap{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);margin-bottom:3px;
   display:flex;flex-direction:column;align-items:center;pointer-events:none;z-index:6}
+/* 自己这家改放牌块左边：正上方是中央的斗法提示，两个会叠在一起 */
+.pwr-wrap.side{left:auto;right:100%;bottom:auto;top:50%;
+  transform:translateY(-50%);margin:0 10px 0 0;align-items:flex-end}
 .reveal-tag .pv{color:#ffe38a;font-size:15px;font-weight:900;margin-left:2px}
 .rank-badge{width:17px;height:17px;border-radius:50%;font-size:11px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex:none}
 .rank-big{width:34px;height:34px;font-size:21px}
@@ -326,6 +345,12 @@ body.land .match-wrap{gap:10px;padding:8px}
 .amt-line{font-size:23px;font-weight:900;letter-spacing:.5px;line-height:1.15;white-space:nowrap;
   -webkit-text-stroke:1px rgba(0,0,0,.6);text-shadow:0 2px 7px rgba(0,0,0,.95);
   will-change:transform,opacity;margin:1px 0;min-height:27px}
+/* 出牌区里的输赢豆改成压在自己牌行的下沿，绝对定位、不占一行 ——
+   占一行会在牌型标和牌之间留出空隙把牌顶下去；放到牌的左右侧则五家会抢
+   同一条空档（中间还有结算框），横向根本排不开。压在自己牌上各归各的，不会打架。 */
+.play-slot > .amt-line{position:absolute;left:50%;transform:translateX(-50%);bottom:-2px;
+  min-height:0;margin:0;z-index:7;pointer-events:none;
+  -webkit-text-stroke:1.2px rgba(0,0,0,.75);text-shadow:0 2px 8px rgba(0,0,0,1)}
 .amt-line.up{color:#7dffae}
 .amt-line.dn{color:#ff8272}
 .rk1{background:linear-gradient(#ffe58a,#e0a12c);color:#5a2f00;box-shadow:0 0 8px rgba(255,200,80,.9)}
