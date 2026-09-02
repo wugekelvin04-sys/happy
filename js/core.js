@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.7.1';
+const APP_VERSION = '2.7.2';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -107,7 +107,14 @@ function bigWin(txt, ms) {
 }
 function openModal(html) { $('#modal').innerHTML = html; $('#mask').classList.add('on'); $('#modal').scrollTop = 0; }
 function closeModal() { $('#mask').classList.remove('on'); }
-function show(id) { $$('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
+/* 强制横屏时 #app 缩进了安全区，露出来的那两条要和当前主题的底色一致，
+   取的是各主题径向渐变最外圈的颜色，和界面边缘接得上。 */
+const PAGE_BG = { 'th-lobby': '#061a11', 'th-baque': '#0d2f5e', 'th-douxian': '#16264a', 'th-sanguo': '#3a120a' };
+function show(id) {
+  $$('.screen').forEach(s => s.classList.toggle('on', s.id === id));
+  const on = $('.screen.on');
+  if (on) for (const k in PAGE_BG) if (on.classList.contains(k)) document.body.style.background = PAGE_BG[k];
+}
 
 /* ---------------- 强制刷新 / 版本信息 ---------------- */
 const CORE_FILES = ['index.html', 'js/core.js', 'js/baque.js', 'js/douxian.js',
