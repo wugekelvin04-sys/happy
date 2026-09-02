@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.7.1';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -385,15 +385,16 @@ function mkPlaySlot(cfg) {
   return applyPos(d, cfg.play);
 }
 /* 强制横屏时 #app 带 transform，它就成了内部 position:fixed 元素的包含块，
-   于是「视口坐标」和「#app 内部坐标」差了一个 90° 旋转。飞豆、光圈这些
-   都按 #app 内部坐标定位，所以量到的 rect 要换算回去：
-   视口(vx,vy) → 内部(x,y) = (vy, 视口宽 − vx)。 */
+   于是「视口坐标」和「#app 内部坐标」差了一个 90° 旋转 + 一个安全区偏移。
+   飞豆、光圈这些都按 #app 内部坐标定位，所以量到的 rect 要换算回去：
+   视口(vx,vy) → 内部(x,y) = (vy − 上安全区, 视口宽 − 右安全区 − vx)。 */
+let ROT = null;                     // 旋转态下记着安全区，rectOf 要用
 function rectOf(el) {
   const r = el.getBoundingClientRect();
-  if (!document.body.classList.contains('force-rot')) return r;
-  const Vw = window.innerWidth;
-  return { left: r.top, top: Vw - r.left - r.width, width: r.height, height: r.width,
-    right: r.top + r.height, bottom: Vw - r.left };
+  if (!ROT) return r;
+  const x0 = ROT.t, y0 = window.innerWidth - ROT.r;
+  return { left: r.top - x0, top: y0 - r.left - r.width, width: r.height, height: r.width,
+    right: r.top - x0 + r.height, bottom: y0 - r.left };
 }
 /* ---------------------------------------------------------------
    动画统一走 Motion（js/vendor/motion.js，MIT）。
@@ -714,15 +715,38 @@ function actBtn(txt, cls, fn) {
    启动
    ===================================================================== */
 /* 横屏时大厅用三栏布局 */
+/* 量一次 env(safe-area-inset-*)：CSS 里取不到数值，只能靠一个探针元素 */
+function safeInsets() {
+  let p = $('#safeProbe');
+  if (!p) {
+    p = document.createElement('div'); p.id = 'safeProbe';
+    p.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;visibility:hidden;'
+      + 'padding:env(safe-area-inset-top) env(safe-area-inset-right)'
+      + ' env(safe-area-inset-bottom) env(safe-area-inset-left)';
+    document.body.appendChild(p);
+  }
+  const c = getComputedStyle(p);
+  return { t: parseFloat(c.paddingTop) || 0, r: parseFloat(c.paddingRight) || 0,
+    b: parseFloat(c.paddingBottom) || 0, l: parseFloat(c.paddingLeft) || 0 };
+}
 function fitLayout() {
   const vw = window.innerWidth, vh = window.innerHeight, rot = vh > vw;
   document.body.classList.toggle('force-rot', rot);
   document.body.classList.add('land');            // 永远按横屏排版
   const app = $('#app');
-  if (app) {                                      // 转过来之后宽高要对调
-    app.style.width = rot ? vh + 'px' : '';
-    app.style.height = rot ? vw + 'px' : '';
-  }
+  if (!app) return;
+  if (!rot) { ROT = null; app.style.cssText = ''; return; }
+  const si = safeInsets();
+  // 转过来之后：屏幕上边 = 界面左边（灵动岛那条），屏幕下边 = 界面右边（home 条）。
+  // 灵动岛这侧留个底，env 万一取不到 0 也不至于压住头像。
+  const e = { t: Math.max(si.t, 34), b: Math.max(si.b, 12),
+    l: Math.max(si.l, 4), r: Math.max(si.r, 4) };
+  ROT = e;
+  const uw = vw - e.l - e.r, uh = vh - e.t - e.b;   // 安全区里可用的那块
+  app.style.width = uh + 'px';                     // 旋转 90°，宽高对调
+  app.style.height = uw + 'px';
+  app.style.left = ((e.l + vw - e.r) / 2) + 'px';  // 安全区的中心，不是屏幕中心
+  app.style.top = ((e.t + vh - e.b) / 2) + 'px';
 }
 function bootstrap() {
   S = loadSave();

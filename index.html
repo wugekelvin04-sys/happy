@@ -38,14 +38,12 @@ body{
 #app{position:fixed;inset:0}
 /* 强制横屏：设备竖着拿的时候，把整个界面转 90° 并交换宽高，
    而不是切换成竖屏排版。iOS 不支持 screen.orientation.lock，只能这么做。
-   安全区也要跟着转：本地的左边其实是屏幕的上边。 */
-body.force-rot #app{inset:auto;left:50%;top:50%;box-sizing:border-box;
-  transform-origin:50% 50%;transform:translate(-50%,-50%) rotate(90deg);
-  padding-left:max(env(safe-area-inset-top),8px);padding-right:max(env(safe-area-inset-bottom),8px);
-  padding-top:max(env(safe-area-inset-right),4px);padding-bottom:max(env(safe-area-inset-left),4px)}
-/* 转过来之后安全区由 #app 统一让位，内层不能再按未旋转的方向留一遍，
-   否则灵动岛那边照样被压住，另一边白留一大条。 */
-body.force-rot{--safe-top:4px;--safe-bot:4px}
+   安全区不能用 padding 让位 —— .screen / .me-bar / 座位都是 position:absolute，
+   撑满的是 padding box，加 padding 等于没加。改成直接把 #app 这个盒子缩小、
+   摆到安全区里面（宽高和位置由 fitLayout 按旋转后的方向算好）。 */
+body.force-rot #app{inset:auto;transform-origin:50% 50%;
+  transform:translate(-50%,-50%) rotate(90deg)}
+body.force-rot{--safe-top:6px;--safe-bot:6px}
 body.force-rot .screen{padding-left:0;padding-right:0}
 .screen{position:absolute;inset:0;display:none;flex-direction:column;
   padding-top:var(--safe-top);padding-bottom:var(--safe-bot);
