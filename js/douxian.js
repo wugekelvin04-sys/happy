@@ -186,9 +186,9 @@ class DouxianGame {
     // 官方一格：自己 144/2781 = 5.18% 的桌宽，别家 72/2781 = 2.59%。
     // 按桌宽实时换算，换设备也对得上；写死 px 只在某一个尺寸下准。
     const TW = (this.c.body && this.c.body.clientWidth) || 852;
-    // 别家一格 44/2000 = 2.2% 桌宽：凡(2)+灵(3) 共 5 格要正好挤进 11.15% 的整块宽度，
-    // 大一点就会挤成三行，整块高度直接超官方 85px
-    const cw = Math.round(TW * (mini ? .0215 : .050));
+    // 别家一格：布阵时 2.15% 桌宽（灰格挤两行），斗法时放大到 3.2% —— 官方斗法
+    // 阶段别家的牌明显更大，牌面要看得清，太小等于没显示
+    const cw = Math.round(TW * (mini ? (show ? .032 : .0215) : .050));
     for (let i = 0; i < size; i++) {
       if (cards[i]) {
         if (reveal === false) {
@@ -288,7 +288,8 @@ class DouxianGame {
       const mr = document.createElement('div');
       mr.className = 'mini-realms' + (i === 3 ? ' lft' : '');
       // 官方别家区域整块占桌宽 12.1%，凡+灵 一行、仙 折到第二行
-      mr.style.maxWidth = Math.round(((this.c.body && this.c.body.clientWidth) || 852) * .135) + 'px';
+      mr.style.maxWidth = Math.round(((this.c.body && this.c.body.clientWidth) || 852)
+        * (showOthers ? .20 : .135)) + 'px';
       for (let z = 0; z < 3; z++) {
         const el = this.realmEl(i, z, true, showOthers);
         if (this.round === 1 && z === 2) el.classList.add('sealed');   // 官方也画出来，占第二行

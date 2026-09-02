@@ -293,6 +293,9 @@ body.land .match-wrap{gap:10px;padding:8px}
 /* 区域里的牌按官方是 1.2 的比例（比标准牌矮），格子也一样 */
 .realm .rs .card{height:calc(var(--cw,46px) * 1.2)}
 .realm .rs{display:flex;gap:2px}
+/* 区域里的牌不叠 —— .play-slot .card 上那个 -14px 的固定重叠是给大牌写的，
+   套到区域里 20px 的小牌上会把牌叠得只剩 6px，等于没显示牌面 */
+.realm .rs .card,.realm .rs .cardback{margin-left:0}
 /* 斗法阶段：牌放大 */
 #table.reveal .center-zone{width:352px}
 /* 三国：开牌时我的账户挪到下方正中（正对我的牌），中间信息区腾大 */

@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.15.1';
+const APP_VERSION = '2.16.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -796,20 +796,18 @@ function fitLayout() {
   const stp = Math.max(si.r, 2), sbt = Math.max(si.l, 2);
   st.setProperty('--sl', sl + 'px');
   st.setProperty('--sr', sr + 'px');
-  // 画布保持完整的一帧（宽高比不能动，动了所有百分比坐标就全错），
-  // 然后整体等比缩小放进安全区里居中 —— 铺满整帧的话左边 59px 会被灵动岛
-  // 切掉、右边只被 home 条切 34px，两边切得不一样多，看着就整体偏左。
-  app.style.width = vh + 'px';                     // 旋转 90°，宽高对调
-  app.style.height = vw + 'px';
+  // 画布直接填满安全区，不等比缩放 —— 等比缩放会在上下留出黑边，屏幕用不满。
+  // 代价是宽高比从 2.17 变成约 1.98，横向元素相对官方宽约 9%，但屏幕是满的。
   const uw = vh - sl - sr, uh = vw - stp - sbt;    // 安全区里可用的那块（界面坐标）
-  const k = Math.min(uw / vh, uh / vw, 1);
-  app.style.setProperty('--fit', k.toFixed(4));
+  app.style.width = uw + 'px';                     // 旋转 90°，宽高对调
+  app.style.height = uh + 'px';
+  app.style.setProperty('--fit', '1');
   // 安全区中心（界面坐标）换算回视口坐标：视口x = 视口宽 − 界面y，视口y = 界面x
   const cx = sl + uw / 2, cy = stp + uh / 2;
   const lx = vw - cy, ly = cx;
   app.style.left = lx + 'px';
   app.style.top = ly + 'px';
-  ROT = { lx: lx, ly: ly, k: k, w: vh, h: vw };
+  ROT = { lx: lx, ly: ly, k: 1, w: uw, h: uh };
 }
 function bootstrap() {
   S = loadSave();
