@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.15.0';
+const APP_VERSION = '2.15.1';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -405,13 +405,18 @@ function mkPlaySlot(cfg) {
    于是「视口坐标」和「#app 内部坐标」差了一个 90° 旋转 + 一个安全区偏移。
    飞豆、光圈这些都按 #app 内部坐标定位，所以量到的 rect 要换算回去：
    视口(vx,vy) → 内部(x,y) = (vy − 上安全区, 视口宽 − 右安全区 − vx)。 */
-let ROT = false;                    // 是否处于强制横屏（旋转）状态
+/* 强制横屏时 #app 是「转 90° + 等比缩放 + 摆到安全区中心」，
+   所以视口坐标和界面内部坐标之间差一个旋转、一个缩放和一个平移。
+   飞豆、光圈都按界面内部坐标定位，量到的 rect 必须换算回去。 */
+let ROT = null;                     // {lx, ly, k, w, h}：#app 的中心、缩放和帧尺寸
 function rectOf(el) {
   const r = el.getBoundingClientRect();
   if (!ROT) return r;
-  const Vw = window.innerWidth;     // #app 铺满整屏，只差一个 90° 旋转
-  return { left: r.top, top: Vw - r.left - r.width, width: r.height, height: r.width,
-    right: r.top + r.height, bottom: Vw - r.left };
+  const { lx, ly, k, w, h } = ROT;
+  const left = (r.top - ly) / k + w / 2;
+  const top = h / 2 - (r.right - lx) / k;
+  return { left, top, width: r.height / k, height: r.width / k,
+    right: left + r.height / k, bottom: top + r.width / k };
 }
 /* ---------------------------------------------------------------
    动画统一走 Motion（js/vendor/motion.js，MIT）。
@@ -781,19 +786,30 @@ function fitLayout() {
   if (!app) return;
   const st = document.body.style;
   if (!rot) {
-    ROT = false; app.style.width = ''; app.style.height = '';
+    ROT = null; app.style.cssText = '';
     ['--sl', '--sr'].forEach(k => st.removeProperty(k));
     return;
   }
-  ROT = true;
-  app.style.width = vh + 'px';                     // 旋转 90°，宽高对调；铺满整屏
-  app.style.height = vw + 'px';
   const si = safeInsets();
   // 转过来之后：屏幕上边 = 界面左边（灵动岛那条），屏幕下边 = 界面右边（home 条）。
-  // 画布本身不缩进 —— 缩进会把宽高比从 2.17 压到 2.0，所有按百分比摆的元素
-  // 横向系统性偏小 10%，和官方就对不上了。改成只让「贴边的 UI」避让。
-  st.setProperty('--sl', Math.max(si.t, 34) + 'px');
-  st.setProperty('--sr', Math.max(si.b, 12) + 'px');
+  const sl = Math.max(si.t, 34), sr = Math.max(si.b, 12);
+  const stp = Math.max(si.r, 2), sbt = Math.max(si.l, 2);
+  st.setProperty('--sl', sl + 'px');
+  st.setProperty('--sr', sr + 'px');
+  // 画布保持完整的一帧（宽高比不能动，动了所有百分比坐标就全错），
+  // 然后整体等比缩小放进安全区里居中 —— 铺满整帧的话左边 59px 会被灵动岛
+  // 切掉、右边只被 home 条切 34px，两边切得不一样多，看着就整体偏左。
+  app.style.width = vh + 'px';                     // 旋转 90°，宽高对调
+  app.style.height = vw + 'px';
+  const uw = vh - sl - sr, uh = vw - stp - sbt;    // 安全区里可用的那块（界面坐标）
+  const k = Math.min(uw / vh, uh / vw, 1);
+  app.style.setProperty('--fit', k.toFixed(4));
+  // 安全区中心（界面坐标）换算回视口坐标：视口x = 视口宽 − 界面y，视口y = 界面x
+  const cx = sl + uw / 2, cy = stp + uh / 2;
+  const lx = vw - cy, ly = cx;
+  app.style.left = lx + 'px';
+  app.style.top = ly + 'px';
+  ROT = { lx: lx, ly: ly, k: k, w: vh, h: vw };
 }
 function bootstrap() {
   S = loadSave();

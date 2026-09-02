@@ -44,8 +44,8 @@ body{
    安全区跟着转 90°：界面的左边其实是屏幕的上边（灵动岛），右边是屏幕的下边。
    注意不能用 padding：.screen / .me-bar / 座位都是 position:absolute，
    撑满的是包含块的 padding box，加 padding 等于没加，只能改 top/right/bottom/left。 */
-body.force-rot #app{inset:auto;left:50%;top:50%;transform-origin:50% 50%;
-  transform:translate(-50%,-50%) rotate(90deg)}
+body.force-rot #app{inset:auto;transform-origin:50% 50%;
+  transform:translate(-50%,-50%) rotate(90deg) scale(var(--fit,1))}
 body.force-rot .screen{padding-left:0;padding-right:0}
 /* 画布铺满整帧（缩进会把 2.17 的宽高比压成 2.0，所有百分比坐标横向偏小 10%）；
    只有贴边的 UI —— 顶栏、我的信息条 —— 单独避开灵动岛和 home 条。 */
