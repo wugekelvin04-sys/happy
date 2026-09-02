@@ -295,6 +295,9 @@ class SanguoGame {
     tag.className = 'reveal-tag'; tag.textContent = '—';
     wrap.appendChild(tag);
     sl.appendChild(wrap);         // 名次牌型标在牌的上方
+    const amt = document.createElement('div');
+    amt.className = 'amt-line'; amt.style.visibility = 'hidden'; amt.textContent = '';
+    sl.appendChild(amt);          // 输赢豆单独一行，放在名次牌外面
     sl.appendChild(row);
     return row;
   }
@@ -320,31 +323,34 @@ class SanguoGame {
   flamesHtml(fire) {
     if (fire <= .04) return '';
     let h = '';
+    // 每条火舌是一张 18 帧序列图；彼此大幅重叠 + screen 混色，才连成一圈火墙
     const put = (left, top, rot, hgt) => {
-      const wid = Math.round(hgt * (.44 + Math.random() * .16));
-      const dur = (.6 + Math.random() * .5).toFixed(2);
-      const dly = (Math.random() * .8).toFixed(2);
+      const H = Math.round(hgt), W = Math.round(hgt * .78);
+      const dur = (.55 + Math.random() * .45).toFixed(2);
+      const dly = (Math.random() * .9).toFixed(2);
+      const mir = Math.random() < .5 ? ' mir' : '';
       h += '<div class="flame-slot" style="left:' + left + ';top:' + top + ';transform:rotate(' + rot + 'deg)">'
-        + '<div class="flame' + (Math.random() < .5 ? ' alt' : '') + '" style="left:' + (-wid / 2) + 'px;width:'
-        + wid + 'px;height:' + Math.round(hgt) + 'px;animation-duration:' + dur
-        + 's;animation-delay:-' + dly + 's"></div></div>';
+        + '<div class="fl' + mir + '" style="left:' + (-W / 2) + 'px;width:' + W + 'px;height:' + H + 'px">'
+        + '<i style="animation-duration:' + dur + 's;animation-delay:-' + dly + 's"></i></div></div>';
     };
-    const H = 20 + fire * 26;                       // 火舌基准高度
-    const nTop = Math.round(3 + fire * 5);          // 上边
+    const H = 30 + fire * 36;                          // 火舌基准高度
+    const nTop = Math.round(6 + fire * 7);             // 上边：最旺
     for (let k = 0; k < nTop; k++) {
       const p = (k + .5) / nTop;
-      put((8 + p * 84).toFixed(1) + '%', '0', (p - .5) * 26, H * (.75 + Math.random() * .5));
+      put((-4 + p * 108).toFixed(1) + '%', '0', (p - .5) * 18, H * (.7 + Math.random() * .55));
     }
-    const nBot = Math.round(2 + fire * 4);          // 下边
+    const nBot = Math.round(4 + fire * 5);             // 下边：矮一些
     for (let k = 0; k < nBot; k++) {
       const p = (k + .5) / nBot;
-      put((10 + p * 80).toFixed(1) + '%', '100%', 180 + (p - .5) * -26, H * (.6 + Math.random() * .4));
+      put((-2 + p * 104).toFixed(1) + '%', '100%', 180 + (p - .5) * -18, H * (.42 + Math.random() * .3));
     }
-    if (fire > .3) {                                // 两端
-      [['0', -90], ['100%', 90]].forEach(([x, r]) => {
-        [.32, .72].forEach(y => put(x, (y * 100) + '%', r, H * (.55 + Math.random() * .35)));
-      });
-    }
+    const nSide = Math.round(1 + fire * 3);            // 两端
+    [['0%', -90], ['100%', 90]].forEach(([x, r]) => {
+      for (let k = 0; k < nSide; k++) {
+        const p = (k + .5) / nSide;
+        put(x, (12 + p * 76).toFixed(1) + '%', r + (p - .5) * 26, H * (.4 + Math.random() * .3));
+      }
+    });
     return h;
   }
   /* 名次徽章 + 牌型（+ 输赢豆）。名次越靠前烧得越旺，
@@ -365,9 +371,18 @@ class SanguoGame {
     wrap.querySelector('.flames').innerHTML = this.flamesHtml(fire);
     tag.innerHTML = '<span class="rank-badge rank-big rk' + Math.min(4, rank) + '">' + rank + '</span>'
       + '<span class="cn2">' + SG_CAMPS[play.camp].n + '</span>'
-      + '<b class="fx-name lg">' + play.ev.name + '</b>'
-      + (delta ? '<b class="amt" style="color:' + (delta > 0 ? '#7dffae' : '#ff8272') + '">'
-        + (delta > 0 ? '+' : '') + fmt(delta) + '</b>' : '');
+      + '<b class="fx-name lg">' + play.ev.name + '</b>';
+    const amt = this.slots[i].querySelector('.amt-line');
+    if (amt) {
+      if (delta) {
+        const isNew = amt.style.visibility === 'hidden';
+        amt.className = 'amt-line ' + (delta > 0 ? 'up' : 'dn');
+        amt.style.visibility = 'visible';
+        amt.textContent = (delta > 0 ? '+' : '') + fmt(delta);
+        if (isNew) anim(amt, { opacity: [0, 1], scale: [.5, 1.25, 1] },
+          { duration: .5, ease: MO ? Motion.backOut : 'ease-out' });
+      } else { amt.style.visibility = 'hidden'; amt.textContent = ''; }
+    }
     if (firstShow) anim(wrap, { opacity: [0, 1], scale: [.6, 1] },
       { duration: .34, ease: MO ? Motion.backOut : 'ease-out' });
     else if (changed) {                       // 名次被后面的人挤动了 → 弹一下提示

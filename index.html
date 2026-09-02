@@ -294,16 +294,17 @@ body.land .match-wrap{gap:10px;padding:8px}
   animation:fireBreath 1.05s ease-in-out infinite alternate}
 @keyframes fireBreath{from{transform:scale(.97)}to{transform:scale(1.06)}}
 .flame-slot{position:absolute;transform-origin:0 0;pointer-events:none}
-/* 火舌：clip-path 画「尖顶圆底」的轮廓，只动 transform 摇曳 */
-.flame{position:absolute;bottom:0;transform-origin:50% 100%;will-change:transform,opacity;
-  background:linear-gradient(to top,#fff6cf 0%,#ffd257 18%,#ff9a24 46%,#f4550f 72%,rgba(255,70,0,0) 100%);
-  clip-path:polygon(50% 0%,64% 22%,60% 42%,78% 54%,80% 74%,62% 95%,50% 100%,38% 95%,20% 74%,22% 54%,40% 42%,36% 22%);
-  animation:flameUp .8s ease-in-out infinite alternate}
-@keyframes flameUp{
-  0%{transform:scale(.9,.8) skewX(4deg);opacity:.7}
-  55%{transform:scale(1,1.1) skewX(-3deg)}
-  100%{transform:scale(.95,1.32) skewX(3deg);opacity:1}}
-.flame.alt{clip-path:polygon(50% 0%,70% 26%,58% 44%,82% 60%,76% 80%,56% 97%,44% 97%,24% 80%,18% 60%,42% 44%,30% 26%)}
+/* 火焰用序列帧素材（icons/flame.png，18 帧，程序生成）。
+   播放靠内层 <i> 的 translateX + steps()，走合成器，不逐帧重绘。 */
+.fl{position:absolute;bottom:0;overflow:hidden;pointer-events:none;
+  -webkit-mask-image:linear-gradient(to top,transparent 0,#000 30%,#000 100%);
+  mask-image:linear-gradient(to top,transparent 0,#000 30%,#000 100%);
+  will-change:transform,opacity}
+.fl > i{display:block;height:100%;width:1800%;
+  background:url(icons/flame.png) 0 0/100% 100% no-repeat;
+  will-change:transform;animation:flameSheet .8s steps(18) infinite}
+@keyframes flameSheet{to{transform:translateX(-100%)}}
+.fl.mir > i{transform-origin:center;scale:-1 1}
 .ember{position:absolute;bottom:3px;width:5px;height:5px;border-radius:50%;pointer-events:none;
   background:radial-gradient(circle at 40% 35%,#fff6cf,#ffab35 48%,#ff5c14);
   will-change:transform,opacity;animation:emberUp 1.5s ease-out infinite}
@@ -321,7 +322,12 @@ body.land .match-wrap{gap:10px;padding:8px}
   -webkit-text-stroke:.6px rgba(70,38,0,.55);
   filter:drop-shadow(0 1px 0 rgba(0,0,0,.55))}
 .fx-name.lg{font-size:1.18em}
-.reveal-tag .amt{font-size:21px;font-weight:900}
+/* 输赢豆放在名次牌外面，单独一行 */
+.amt-line{font-size:23px;font-weight:900;letter-spacing:.5px;line-height:1.15;white-space:nowrap;
+  -webkit-text-stroke:1px rgba(0,0,0,.6);text-shadow:0 2px 7px rgba(0,0,0,.95);
+  will-change:transform,opacity;margin:1px 0;min-height:27px}
+.amt-line.up{color:#7dffae}
+.amt-line.dn{color:#ff8272}
 .rk1{background:linear-gradient(#ffe58a,#e0a12c);color:#5a2f00;box-shadow:0 0 8px rgba(255,200,80,.9)}
 .rk2{background:linear-gradient(#c8dcff,#5a86c8);color:#0d2140}
 .rk3{background:linear-gradient(#ffcaa0,#d07a2a);color:#3a1a00}
