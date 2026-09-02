@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.9.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -574,7 +574,7 @@ function rankFire(rank, n) {
   n = Math.max(1, n || 4);
   return Math.max(0, Math.min(1, (n - rank + 1) / n));
 }
-function ensureResultTag(host, atTop, side) {
+function ensureResultTag(host, atTop, side, amtHost) {
   let wrap = host.querySelector(':scope > .tag-wrap');
   if (wrap) return wrap;
   wrap = document.createElement('div');
@@ -586,14 +586,17 @@ function ensureResultTag(host, atTop, side) {
   const amt = document.createElement('div');
   amt.className = 'amt-line'; amt.style.visibility = 'hidden';
   if (side) amt.dataset.side = side;
-  if (atTop) { host.insertBefore(amt, host.firstChild); host.insertBefore(wrap, host.firstChild); }
+  if (amtHost && amtHost !== host) {            // 输赢豆挂到另一个容器（斗仙放在这一界的底标行）
+    host.appendChild(wrap); amtHost.appendChild(amt);
+  } else if (atTop) { host.insertBefore(amt, host.firstChild); host.insertBefore(wrap, host.firstChild); }
   else { host.appendChild(wrap); host.appendChild(amt); }
+  wrap._amt = amt;
   return wrap;
 }
 /* o = { badge, rk, html, fire, delta, first, atTop, sm, amtSide }
    badge 为 null 时不画徽章；徽章变了会弹一下（名次被后面的人挤动时用）。 */
 function setResultTag(host, o) {
-  const wrap = ensureResultTag(host, o.atTop, o.amtSide);
+  const wrap = ensureResultTag(host, o.atTop, o.amtSide, o.amtHost);
   const tag = wrap.querySelector('.reveal-tag');
   const firstShow = wrap.style.visibility === 'hidden';
   const key = o.badge == null ? '' : String(o.badge);
@@ -609,7 +612,7 @@ function setResultTag(host, o) {
   const fl = wrap.querySelector('.flames');
   fl.className = 'flames' + (lv ? ' lv' + lv : '') + (wrap.dataset.mir ? ' mir' : '');
   fl.style.display = lv ? '' : 'none';
-  const amt = wrap.parentNode.querySelector(':scope > .amt-line');
+  const amt = wrap._amt || wrap.parentNode.querySelector(':scope > .amt-line');
   if (amt) {
     if (o.delta) {
       const isNew = amt.style.visibility === 'hidden';
@@ -636,8 +639,7 @@ function setResultTag(host, o) {
 }
 function clearResultTag(host) {
   if (!host) return;
-  const w = host.querySelector(':scope > .tag-wrap'); if (w) w.remove();
-  const a = host.querySelector(':scope > .amt-line'); if (a) a.remove();
+  host.querySelectorAll(':scope > .tag-wrap, :scope > .amt-line').forEach(e => e.remove());
 }
 /* 并列同名次：cmp(a,b) > 0 表示 a 强 */
 function rankList(idx, cmp) {

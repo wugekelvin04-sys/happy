@@ -271,6 +271,9 @@ body.land .match-wrap{gap:10px;padding:8px}
 .realm .pw{font-size:10px;text-align:center;color:var(--gold);font-weight:800;min-height:13px}
 .pw-prev{color:#8fd6ff;text-shadow:0 0 8px rgba(120,200,255,.6)}
 .mini-realms{display:flex;gap:3px;flex-wrap:wrap;max-width:186px;justify-content:flex-end}
+/* 上家的牌块居中、两边是空的，排成一行就行；换行会往下长两排，
+   把中间的结算标和别家的牌压住。 */
+.mini-realms.top{max-width:none;flex-wrap:nowrap;justify-content:center}
 .mini-realms.lft{justify-content:flex-start}
 .mini-realms .realm{padding:1px 2px 2px}
 .mini-realms .rn{font-size:9px;line-height:1.1}
@@ -286,21 +289,21 @@ body.land .match-wrap{gap:10px;padding:8px}
 /* 标里带第二行小字（八雀把番型明细并进来，中间就不用再摆一个结算框了） */
 .reveal-tag .col{display:flex;flex-direction:column;align-items:flex-start;line-height:1.2}
 .reveal-tag .col small{font-size:10px;font-weight:600;color:#ffd9a8;opacity:.9;letter-spacing:0}
-.tag-wrap.sm .flames{top:-26px;right:-21px;bottom:-17px;left:-21px}
+.tag-wrap.sm .flames{top:-4px;right:-10px;bottom:-4px;left:-10px;border-radius:11px}
 .amt-line.sm{font-size:15px;min-height:18px;-webkit-text-stroke:.6px rgba(0,0,0,.6);margin:0}
 
 /* 斗仙牌：斗法横幅 / 名次 / 飘豆动画 */
-/* 斗仙的结算标浮在这一家牌块的正上方，不挤占行内位置 */
-.pwr-wrap{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);margin-bottom:3px;
-  display:flex;flex-direction:column;align-items:center;pointer-events:none;z-index:6}
-/* 自己这家改放牌块左边：正上方是中央的斗法提示，两个会叠在一起 */
-.pwr-wrap.side{left:auto;right:100%;bottom:auto;top:50%;
-  transform:translateY(-50%);margin:0 10px 0 0;align-items:flex-end}
+/* 斗仙的结算标就长在「正在比拼的那一界」的标签位里，随牌块走，不浮动 */
+/* 结算标压在区域上沿那一行；行本身不长高，标往上溢出一点点 */
+.realm .rn > .tag-wrap{margin:-3px 0 -1px}
+.realm .pw > .amt-line{min-height:0;margin:0}
+.mini-pw{font-size:9px;line-height:1.3;text-align:center;color:#cfe0ff;opacity:.85;min-height:12px}
 .reveal-tag .pv{color:#ffe38a;font-size:15px;font-weight:900;margin-left:2px}
 .rank-badge{width:17px;height:17px;border-radius:50%;font-size:11px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex:none}
 .rank-big{width:34px;height:34px;font-size:21px}
 .reveal-tag{position:relative;display:inline-flex;align-items:center;gap:8px;justify-content:center;
-  font-size:20px;font-weight:700;background:#0b110f;border:1px solid rgba(255,255,255,.16);
+  font-size:20px;font-weight:700;background:linear-gradient(90deg,rgba(46,10,2,.9),rgba(11,17,15,.96) 22%,rgba(11,17,15,.96) 78%,rgba(46,10,2,.9));
+  border:1px solid rgba(255,255,255,.16);
   border-radius:12px;padding:4px 14px;white-space:nowrap;will-change:transform,opacity;letter-spacing:.5px}
 /* 名次越靠前烧得越旺：--fire 0~1 控制火焰强度。
    火焰层是名次牌的「兄弟」并排在它前面，牌本身不透明，
@@ -311,8 +314,8 @@ body.land .match-wrap{gap:10px;padding:8px}
    不像拼贴那样出现互相穿插的边。火焰层排在不透明的名次牌前面，
    牌面那块自然被盖住，看到的就是围着牌烧的一圈。
    播放只靠内层 <i> 的 translateX + steps()，走合成器。 */
-.tag-wrap .flames{position:absolute;top:-52px;right:-40px;bottom:-34px;left:-40px;
-  pointer-events:none;overflow:hidden}
+.tag-wrap .flames{position:absolute;top:-6px;right:-14px;bottom:-6px;left:-14px;
+  pointer-events:none;overflow:hidden;border-radius:14px}
 .tag-wrap .flames.mir{transform:scaleX(-1)}
 .tag-wrap .flames > i{display:block;width:1400%;height:100%;
   background-image:url(icons/flamering.png);background-repeat:no-repeat;
@@ -379,6 +382,9 @@ body.land .match-wrap{gap:10px;padding:8px}
 .camp .cc{display:flex;gap:1px;justify-content:center;min-height:29px;align-items:center}
 .camp .cbest{min-height:15px}
 /* 阵营里：自己选的牌白底蓝边带「我」，和米黄的公牌区分开；没配够的画成空位 */
+ /* 布阵时「模拟放入」的预览牌：金色虚线框，点一下撤回 */
+.card.preview{outline:2px dashed rgba(255,215,106,.95);outline-offset:-2px;
+  box-shadow:0 0 10px rgba(255,215,106,.55),0 1px 3px rgba(0,0,0,.45)}
 .card.own{border-color:#5aa7ff;box-shadow:0 0 0 1px rgba(90,167,255,.55),0 1px 3px rgba(0,0,0,.45)}
 .card.own::after{content:'我';position:absolute;left:1px;bottom:0;font-size:8px;color:#1d63b8;font-weight:800;line-height:1}
 .card-hole{width:19px;height:27px;border-radius:4px;flex:none;

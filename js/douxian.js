@@ -133,7 +133,7 @@ class DouxianGame {
        手机横屏牌桌只有 ~390px 高，账户和牌块之间必须留出标 + 火焰的高度
        （紧凑档约 44px），否则火会烧到账户小条上。 */
     const CH = [null, { chip: { right: '2px', top: '19%' }, rev: true }, { chip: { left: '50%', top: '1px', tx: -50 } }, { chip: { left: '2px', top: '19%' } }];
-    const ZP = [{ left: '50%', bottom: '1%', tx: -50 }, { right: '2px', top: '51%' }, { left: '50%', top: '28%', tx: -50 }, { left: '2px', top: '51%' }];
+    const ZP = [{ left: '50%', bottom: '1%', tx: -50 }, { right: '2px', top: '51%' }, { left: '50%', top: '22%', tx: -50 }, { left: '2px', top: '51%' }];
     for (let i = 1; i < 4; i++) {
       const el = mkSeat(this.P[i], CH[i], '<span class="hs"></span>');
       b.appendChild(el); this.seats[i] = el;
@@ -161,6 +161,10 @@ class DouxianGame {
     const nm = document.createElement('div'); nm.className = 'rn'; nm.textContent = DX_ZONES[zi].n;
     d.appendChild(nm);
     const rs = document.createElement('div'); rs.className = 'rs';
+    /* 布阵时把已选的牌直接摆进这一界的空位（虚线高亮），看得见摆好是什么样，
+       点一下就能撤回；真正放入还是要按「确认放入」。 */
+    const preview = (!mini && this.phase === 'place' && zi === this.activeZone)
+      ? this.hands[0].filter(c => this.sel.has(c.id)) : [];
     /* 斗法阶段把牌放大，正在比拼的那一界再大一号 */
     const cw = mini ? (hot ? 34 : show ? 26 : 21) : (hot ? 50 : show ? 38 : 30);
     for (let i = 0; i < size; i++) {
@@ -182,6 +186,12 @@ class DouxianGame {
           }
           rs.appendChild(e);
         }
+      } else if (preview[i - cards.length]) {
+        const c = preview[i - cards.length];
+        const e = cardEl(c, ''); e.style.setProperty('--cw', cw + 'px');
+        e.classList.add('preview'); e.style.cursor = 'pointer';
+        e.onclick = ev => { ev.stopPropagation(); this.tapCard(c); };
+        rs.appendChild(e);
       } else {
         const sl2 = slotEl(true);
         sl2.style.width = cw + 'px'; sl2.style.height = Math.round(cw * 1.44) + 'px';
@@ -192,6 +202,14 @@ class DouxianGame {
     if (!mini) {
       const pw = document.createElement('div'); pw.className = 'pw'; d.appendChild(pw);
       d.onclick = () => { if (this.phase === 'place') this.pickZone(zi); };
+    } else if (show) {
+      // 斗法阶段别家也给一个标签位：正在比的那一界用来挂结算标，其余写牌型和灵力
+      const pw = document.createElement('div'); pw.className = 'pw mini-pw';
+      if (!hot && cards.length === size) {
+        const p = dxPower(cards, zi, this.round);
+        pw.textContent = p.n + ' ' + p.p;
+      }
+      d.appendChild(pw);
     }
     return d;
   }
@@ -245,7 +263,8 @@ class DouxianGame {
     for (let i = 1; i < 4; i++) {
       const box = this.slots[i]; box.innerHTML = '';
       if (showOthers) {
-        const mr = document.createElement('div'); mr.className = 'mini-realms' + (i === 3 ? ' lft' : '');
+        const mr = document.createElement('div');
+        mr.className = 'mini-realms' + (i === 3 ? ' lft' : '') + (i === 2 ? ' top' : '');
         for (let z = 0; z < 3; z++) {
           if (this.round === 1 && z === 2) continue;
           mr.appendChild(this.realmEl(i, z, true, true));
@@ -263,7 +282,9 @@ class DouxianGame {
       const el = this.realmEl(0, z, false, true);
       const need = DX_ZONES[z].size - this.field[0][z].length;
       const pw = el.querySelector('.pw');
-      if (need === 0) {
+      if (this.phase === 'show' && z === this.curZone) {
+        pw.textContent = '';                       // 留给结算标
+      } else if (need === 0) {
         const p = dxPower(this.field[0][z], z, this.round);
         pw.textContent = p.n + ' ' + p.p;
       } else if (this.phase === 'place' && z === this.activeZone) {
@@ -376,17 +397,20 @@ class DouxianGame {
      和三国牌用的是同一套（core.js 里的 setResultTag）。 */
   banner(i, txt, val, rank, delta) {
     const sl = this.slots[i];
-    if (getComputedStyle(sl).position === 'static') sl.style.position = 'relative';
-    let host = sl.querySelector('.pwr-wrap');
-    if (!host) {
-      host = document.createElement('div');
-      host.className = 'pwr-wrap' + (i === 0 ? ' side' : '');   // 自己这家放左边，避开中央提示
-      sl.appendChild(host);
-    }
+    // 照腾讯原版：牌型 + 灵力做成一条细横幅压在「正在比拼的那一界」的上沿
+    //（占掉界名那一行），输赢豆写在这一界底下那行标签位。两处本来就在版面里，
+    // 不额外占高度、不盖牌，各家的标也各自待在自己的牌块里，压不到别人。
+    const hot = sl.querySelector('.realm.hot');
+    const host = hot ? hot.querySelector('.rn') : sl.querySelector('.pw');
+    if (!host) return;
+    if (!host.querySelector('.tag-wrap')) host.textContent = '';
+    const pw = hot ? hot.querySelector('.pw') : null;
+    if (pw && !pw.querySelector('.amt-line')) pw.textContent = '';
     setResultTag(host, {
       badge: rank, first: rank === 1, fire: rankFire(rank, 4), sm: true,
-      html: '<b class="fx-name lg">' + txt + '</b><span class="pv">' + val + '</span>',
-      delta: delta,
+      html: '<b class="fx-name lg">' + txt + '</b>'
+        + (val === '' ? '' : '<span class="pv">' + val + '</span>'),
+      delta: delta, amtHost: pw || undefined,
     });
   }
   /* 这一界赢豆的玩家弹「胜」标（可能同时有 2 人赢） */
@@ -409,7 +433,7 @@ class DouxianGame {
     await sleep(520);
   }
   clearBanners() {
-    for (let i = 0; i < 4; i++) clearResultTag(this.slots[i].querySelector('.pwr-wrap'));
+    for (let i = 0; i < 4; i++) this.slots[i].querySelectorAll('.rn,.pw').forEach(clearResultTag);
   }
   beanAnchor(i) { return this.anchors[i]; }
   async resolve() {
@@ -419,6 +443,7 @@ class DouxianGame {
     const zones = this.round === 1 ? [0, 1] : [0, 1, 2];
     const pw = [0, 1, 2, 3].map(i => zones.map(z => dxPower(this.field[i][z], z, this.round)));
     const total = [0, 0, 0, 0];
+    const zRank = [];                     // 每一界的名次，回合末判定大道 / 渡劫要用
     for (let zi = 0; zi < zones.length; zi++) {
       const z = zones[zi];
       this.curZone = z;
@@ -427,6 +452,7 @@ class DouxianGame {
         + '<div class="zone-line">' + DX_ZONES[z].n + '界：' + DX_ORDER[z].map((n, k) => k === 0 ? '<b>' + n + '</b>' : n).join(' &gt; ') + '</div>';
       /* 名次 + 横幅 */
       const rk = rankList([0, 1, 2, 3], (a, b) => pw[a][zi].p - pw[b][zi].p);   // 灵力相同 → 并列
+      zRank.push(rk);
       for (let pi = 0; pi < 4; pi++) this.banner(pi, pw[pi][zi].n, pw[pi][zi].p, rk[pi], 0);
       await sleep(1400);
       if (this.c.over) return;
@@ -460,10 +486,10 @@ class DouxianGame {
     }
     this.curZone = -1;
     this.render(true);
-    /* 全胜 */
-    const sweepWin = [], sweepLose = [], sweepPairs = [];
+    /* 全胜：第一回合只有凡、灵两界，不构成「三界全胜」，不额外结算 */
+    const sweepWin = [], sweepLose = [];
     const sd = [0, 0, 0, 0];
-    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+    if (zones.length === 3) for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
       if (i === j) continue;
       let all = true, diff = 0;
       for (let zi = 0; zi < zones.length; zi++) {
@@ -474,7 +500,6 @@ class DouxianGame {
         const amt = capPay(diff * this.c.base,
           this.P[j].beans + this.delta[j] + total[j] + sd[j], this.c.game.cap);
         sd[i] += amt; sd[j] -= amt;
-        sweepPairs.push([i, j]);
         if (sweepWin.indexOf(i) < 0) sweepWin.push(i);
         if (sweepLose.indexOf(j) < 0) sweepLose.push(j);
       }
@@ -499,13 +524,17 @@ class DouxianGame {
     }
     for (let i = 0; i < 4; i++) this.delta[i] += total[i];
     this.render(true);
-    /* 官方：一回合内全胜 2 人及以上 →「得证大道」；全输给 2 人及以上 →「隐忍渡劫」。
-       只对触发的那名玩家生效，且在下一回合补牌之后才把场上的牌全部收回手中。 */
-    const winCnt = [0, 0, 0, 0], loseCnt = [0, 0, 0, 0];
-    sweepPairs.forEach(([w, l]) => { winCnt[w]++; loseCnt[l]++; });
-    this.reset = [0, 1, 2, 3].map(i => winCnt[i] >= 2 || loseCnt[i] >= 2);
-    if (this.reset[0]) bigWin(winCnt[0] >= 2 ? '得证大道' : '隐忍渡劫');
-    else if (this.reset.some(Boolean)) toast('有玩家触发了' + (winCnt.some(c => c >= 2) ? '得证大道' : '隐忍渡劫'), 1200);
+    /* 三界都拿第一 →「得证大道」；三界都垫底 →「隐忍渡劫」。
+       只对触发的那名玩家生效，且在下一回合补牌之后才把场上的牌全部收回手中。
+       第一回合只开凡、灵两界，凑不满三界，一律不触发。 */
+    const dao = [false, false, false, false], jie = [false, false, false, false];
+    if (zRank.length === 3) for (let i = 0; i < 4; i++) {
+      dao[i] = zRank.every(rk => rk[i] === 1);      // 三界都第一
+      jie[i] = zRank.every(rk => rk[i] === 4);      // 三界都最后（并列垫底不算）
+    }
+    this.reset = [0, 1, 2, 3].map(i => dao[i] || jie[i]);
+    if (this.reset[0]) bigWin(dao[0] ? '得证大道' : '隐忍渡劫');
+    else if (this.reset.some(Boolean)) toast('有玩家触发了' + (dao.some(Boolean) ? '得证大道' : '隐忍渡劫'), 1200);
     this.round++;
     $('#table').classList.remove('reveal');
     if (this.round > 4) return setTimeout(() => this.finish(), 900);
