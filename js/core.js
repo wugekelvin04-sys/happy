@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.16.1';
+const APP_VERSION = '2.16.2';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -792,7 +792,9 @@ function fitLayout() {
   }
   const si = safeInsets();
   // 转过来之后：屏幕上边 = 界面左边（灵动岛那条），屏幕下边 = 界面右边（home 条）。
-  const sl = Math.max(si.t, 34), sr = Math.max(si.b, 12);
+  // 只在灵动岛那一侧（界面左边）让位；home 条那一侧（界面右边）不用留，
+  // 那条本来就是半透明的指示条，压着也不影响，留白反而浪费屏幕。
+  const sl = Math.max(si.t, 34), sr = 0;
   const stp = Math.max(si.r, 2), sbt = Math.max(si.l, 2);
   st.setProperty('--sl', sl + 'px');
   st.setProperty('--sr', sr + 'px');
