@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.5.1';
+const APP_VERSION = '2.5.2';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);

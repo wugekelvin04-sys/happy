@@ -323,33 +323,30 @@ class SanguoGame {
   flamesHtml(fire) {
     if (fire <= .04) return '';
     let h = '';
-    // 每条火舌是一张 18 帧序列图；彼此大幅重叠 + screen 混色，才连成一圈火墙
+    // 每条火舌是一张 18 帧的赛璐璐序列图。是硬边分色的卡通火，
+    // 不能像粒子那样堆一大片，所以用少而大的几条围一圈就够。
     const put = (left, top, rot, hgt) => {
-      const H = Math.round(hgt), W = Math.round(hgt * .78);
-      const dur = (.55 + Math.random() * .45).toFixed(2);
+      const H = Math.round(hgt), W = Math.round(hgt * .8);   // 略放宽，火舌之间才叠得住
+      const dur = (.6 + Math.random() * .4).toFixed(2);
       const dly = (Math.random() * .9).toFixed(2);
       const mir = Math.random() < .5 ? ' mir' : '';
       h += '<div class="flame-slot" style="left:' + left + ';top:' + top + ';transform:rotate(' + rot + 'deg)">'
         + '<div class="fl' + mir + '" style="left:' + (-W / 2) + 'px;width:' + W + 'px;height:' + H + 'px">'
         + '<i style="animation-duration:' + dur + 's;animation-delay:-' + dly + 's"></i></div></div>';
     };
-    const H = 30 + fire * 36;                          // 火舌基准高度
-    const nTop = Math.round(6 + fire * 7);             // 上边：最旺
+    const H = 26 + fire * 30;                          // 火舌基准高度
+    const nTop = Math.round(4 + fire * 4);             // 上边：最旺
     for (let k = 0; k < nTop; k++) {
       const p = (k + .5) / nTop;
-      put((-4 + p * 108).toFixed(1) + '%', '0', (p - .5) * 18, H * (.7 + Math.random() * .55));
+      put((-5 + p * 110).toFixed(1) + '%', '0', (p - .5) * 16, H * (.78 + Math.random() * .42));
     }
-    const nBot = Math.round(4 + fire * 5);             // 下边：矮一些
+    const nBot = Math.round(3 + fire * 3);             // 下边：矮一些
     for (let k = 0; k < nBot; k++) {
       const p = (k + .5) / nBot;
-      put((-2 + p * 104).toFixed(1) + '%', '100%', 180 + (p - .5) * -18, H * (.42 + Math.random() * .3));
+      put((2 + p * 96).toFixed(1) + '%', '100%', 180 + (p - .5) * -16, H * (.45 + Math.random() * .25));
     }
-    const nSide = Math.round(1 + fire * 3);            // 两端
-    [['0%', -90], ['100%', 90]].forEach(([x, r]) => {
-      for (let k = 0; k < nSide; k++) {
-        const p = (k + .5) / nSide;
-        put(x, (12 + p * 76).toFixed(1) + '%', r + (p - .5) * 26, H * (.4 + Math.random() * .3));
-      }
+    if (fire > .55) [['0%', -90], ['100%', 90]].forEach(([x, r]) => {   // 两端只在最旺时补一小簇
+      put(x, '50%', r, H * (.42 + Math.random() * .18));
     });
     return h;
   }

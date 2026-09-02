@@ -297,8 +297,6 @@ body.land .match-wrap{gap:10px;padding:8px}
 /* 火焰用序列帧素材（icons/flame.png，18 帧，程序生成）。
    播放靠内层 <i> 的 translateX + steps()，走合成器，不逐帧重绘。 */
 .fl{position:absolute;bottom:0;overflow:hidden;pointer-events:none;
-  -webkit-mask-image:linear-gradient(to top,transparent 0,#000 30%,#000 100%);
-  mask-image:linear-gradient(to top,transparent 0,#000 30%,#000 100%);
   will-change:transform,opacity}
 .fl > i{display:block;height:100%;width:1800%;
   background:url(icons/flame.png) 0 0/100% 100% no-repeat;
