@@ -46,9 +46,11 @@ body{
    撑满的是包含块的 padding box，加 padding 等于没加，只能改 top/right/bottom/left。 */
 body.force-rot #app{inset:auto;left:50%;top:50%;transform-origin:50% 50%;
   transform:translate(-50%,-50%) rotate(90deg)}
-body.force-rot .screen{top:var(--rot-t,4px);right:var(--rot-r,12px);
-  bottom:var(--rot-b,4px);left:var(--rot-l,34px);
-  padding-left:0;padding-right:0}
+body.force-rot .screen{padding-left:0;padding-right:0}
+/* 画布铺满整帧（缩进会把 2.17 的宽高比压成 2.0，所有百分比坐标横向偏小 10%）；
+   只有贴边的 UI —— 顶栏、我的信息条 —— 单独避开灵动岛和 home 条。 */
+body.force-rot .t-top{padding-left:calc(8px + var(--sl,0px));padding-right:calc(8px + var(--sr,0px))}
+body.force-rot .me-bar{left:calc(6px + var(--sl,0px))}
 body.force-rot{--safe-top:6px;--safe-bot:6px}
 .screen{position:absolute;inset:0;display:none;flex-direction:column;
   padding-top:var(--safe-top);padding-bottom:var(--safe-bot);
@@ -158,17 +160,18 @@ body.land .match-wrap{gap:10px;padding:8px}
 #table.th-douxian .actbar{bottom:auto;top:38%}
 #table.th-baque .actbar{bottom:100px}
 /* 官方手牌区 y 77.9%~100%（440 高时约 97px） */
-#table.th-douxian .hand{min-height:97px}
+/* 官方手牌：顶 y≈76%，单张宽 4.3% 桌宽、高 23.9% 桌高（440 高时约 105px） */
+#table.th-douxian .hand{min-height:105px;align-items:flex-start}
 .me-bar{position:absolute;left:6px;bottom:2px;display:flex;align-items:center;gap:6px;font-size:11px;z-index:7}
 
 /* 座位牌：照官方截图做成竖版 —— 头像在上、昵称和豆数在下，整体约 56px 宽。
    原来是横版 180px 宽，位置怎么摆都会跟牌块撞上。 */
-.seat-chip{position:absolute;display:flex;flex-direction:column;align-items:center;gap:1px;z-index:5;
-  width:62px;padding:2px 2px 3px;border-radius:10px;
+.seat-chip{position:absolute;display:flex;flex-direction:column;align-items:center;gap:0;z-index:5;
+  width:62px;padding:1px 1px 2px;border-radius:10px;
   background:rgba(0,0,0,.38);border:1px solid rgba(255,255,255,.1)}
-.seat-chip .av{width:34px;height:34px;border-radius:50%;flex:none;
+.seat-chip .av{width:56px;height:56px;border-radius:50%;flex:none;
   background:linear-gradient(160deg,#ffe08a,#e0a12c);
-  border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:17px}
+  border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:28px}
 .seat-chip .info{font-size:9.5px;line-height:1.25;width:100%;text-align:center}
 .seat-chip .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .seat-chip .bean{justify-content:center}
@@ -284,7 +287,11 @@ body.land .match-wrap{gap:10px;padding:8px}
 .realm.sealed{opacity:.45;pointer-events:none}
 .realm .seal-txt{font-size:9px;opacity:.8;margin-left:3px}
 .realm.act{border-color:var(--gold);background:rgba(255,215,106,.2);box-shadow:0 0 0 1px var(--gold),0 0 16px -4px rgba(255,215,106,.6)}
-.realm .rn{font-size:9px;text-align:center;line-height:1.15;opacity:.95}
+/* 界名 + 牌型灵力同一行（官方就是这样），区域底部不再多占一行 */
+.realm .rn{display:flex;align-items:center;justify-content:space-between;gap:4px;
+  font-size:9px;line-height:1.2;opacity:.95;min-height:13px;padding:0 1px}
+/* 区域里的牌按官方是 1.2 的比例（比标准牌矮），格子也一样 */
+.realm .rs .card{height:calc(var(--cw,46px) * 1.2)}
 .realm .rs{display:flex;gap:2px}
 /* 斗法阶段：牌放大 */
 #table.reveal .center-zone{width:352px}
@@ -312,11 +319,11 @@ body.land .match-wrap{gap:10px;padding:8px}
 .realm .pw{font-size:10px;text-align:center;color:var(--gold);font-weight:800;min-height:13px}
 .pw-prev{color:#8fd6ff;text-shadow:0 0 8px rgba(120,200,255,.6)}
 /* 别家的区域：凡+灵 一行、仙 第二行（官方就是两行，12.1% 宽 × 18.8% 高） */
-.mini-realms{display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end}
+.mini-realms{display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end}
 
 .mini-realms.lft{justify-content:flex-start}
 /* 官方别家的区域是纯灰格，不写界名；带界名会让每行高出 12px，两行就顶到自己的牌上 */
-.mini-realms .realm{padding:2px}
+.mini-realms .realm{padding:1px}
 .mini-realms .rn{display:none}
 .mini-realms .rn{font-size:9px;line-height:1.1}
 .mini-realms .rs{gap:1px}

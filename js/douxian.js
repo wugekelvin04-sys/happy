@@ -171,7 +171,9 @@ class DouxianGame {
     d.className = 'realm'
       + (!mini && zi === this.activeZone && this.phase === 'place' ? ' act' : '')
       + (hot ? ' hot' : (show && this.curZone >= 0 ? ' cold' : ''));
-    const nm = document.createElement('div'); nm.className = 'rn'; nm.textContent = DX_ZONES[zi].n;
+    // 官方：界名和牌型/灵力在同一行（区域顶部），下面直接是格子，没有底部那一行
+    const nm = document.createElement('div'); nm.className = 'rn';
+    nm.innerHTML = '<span class="zn">' + DX_ZONES[zi].n + '</span>';
     d.appendChild(nm);
     const rs = document.createElement('div'); rs.className = 'rs';
     /* 布阵时把已选的牌直接摆进这一界的空位（虚线高亮），看得见摆好是什么样，
@@ -184,7 +186,9 @@ class DouxianGame {
     // 官方一格：自己 144/2781 = 5.18% 的桌宽，别家 72/2781 = 2.59%。
     // 按桌宽实时换算，换设备也对得上；写死 px 只在某一个尺寸下准。
     const TW = (this.c.body && this.c.body.clientWidth) || 852;
-    const cw = Math.round(TW * (mini ? .0259 : .0518));
+    // 别家一格 44/2000 = 2.2% 桌宽：凡(2)+灵(3) 共 5 格要正好挤进 11.15% 的整块宽度，
+    // 大一点就会挤成三行，整块高度直接超官方 85px
+    const cw = Math.round(TW * (mini ? .0215 : .050));
     for (let i = 0; i < size; i++) {
       if (cards[i]) {
         if (reveal === false) {
@@ -211,14 +215,14 @@ class DouxianGame {
         e.onclick = ev => { ev.stopPropagation(); this.tapCard(c); };
         rs.appendChild(e);
       } else {
-        const sl2 = slotEl(true);
-        sl2.style.width = cw + 'px'; sl2.style.height = Math.round(cw * 1.44) + 'px';
+        const sl2 = slotEl(true);            // 官方格子是 1.2 的比例，不是牌的 1.44
+        sl2.style.width = cw + 'px'; sl2.style.height = Math.round(cw * 1.2) + 'px';
         rs.appendChild(sl2);
       }
     }
     d.appendChild(rs);
     if (!mini) {
-      const pw = document.createElement('div'); pw.className = 'pw'; d.appendChild(pw);
+      const pw = document.createElement('div'); pw.className = 'pw'; nm.appendChild(pw);
       d.onclick = () => { if (this.phase === 'place') this.pickZone(zi); };
     } else if (show) {
       // 斗法阶段别家也给一个标签位：正在比的那一界用来挂结算标，其余写牌型和灵力
@@ -227,7 +231,7 @@ class DouxianGame {
         const p = dxPower(cards, zi, this.round);
         pw.textContent = p.n + ' ' + p.p;
       }
-      d.appendChild(pw);
+      nm.appendChild(pw);
     }
     return d;
   }
@@ -284,7 +288,7 @@ class DouxianGame {
       const mr = document.createElement('div');
       mr.className = 'mini-realms' + (i === 3 ? ' lft' : '');
       // 官方别家区域整块占桌宽 12.1%，凡+灵 一行、仙 折到第二行
-      mr.style.maxWidth = Math.round(((this.c.body && this.c.body.clientWidth) || 852) * .121) + 'px';
+      mr.style.maxWidth = Math.round(((this.c.body && this.c.body.clientWidth) || 852) * .135) + 'px';
       for (let z = 0; z < 3; z++) {
         const el = this.realmEl(i, z, true, showOthers);
         if (this.round === 1 && z === 2) el.classList.add('sealed');   // 官方也画出来，占第二行
@@ -295,14 +299,16 @@ class DouxianGame {
       this.seats[i].querySelector('.hs').textContent =
         this.phase === 'place' ? '布阵中…' : '手牌 ' + this.hands[i].length;
     }
+    const TW0 = (this.c.body && this.c.body.clientWidth) || 852;
     const box0 = this.slots[0]; box0.innerHTML = '';
     const wrap = document.createElement('div'); wrap.className = 'realms';
     for (let z = 0; z < 3; z++) {
       const el = this.realmEl(0, z, false, true);
       if (this.round === 1 && z === 2) {          // 仙界第一回合还没开放，照原版画成灰格
         el.classList.add('sealed');
-        el.querySelector('.rn').innerHTML = '仙 <span class="seal-txt">尚未开放</span>';
-        el.querySelector('.pw').textContent = '';
+        // 只改界名那一格，别整段重写 .rn —— .pw 就挂在它里面，重写会把它删掉
+        el.querySelector('.zn').innerHTML = '仙 <span class="seal-txt">尚未开放</span>';
+        const pw0 = el.querySelector('.pw'); if (pw0) pw0.textContent = '';
         wrap.appendChild(el); continue;
       }
       const need = DX_ZONES[z].size - this.field[0][z].length;
@@ -325,9 +331,12 @@ class DouxianGame {
     box0.appendChild(wrap);
     this.myBanner = this.myBanner || null;
     const hd = this.c.hand; hd.innerHTML = '';
-    fitHand(hd, this.hands[0].length, 46);
+    // 官方手牌单张宽 7.5% 桌宽、露出 4.3%（叠 3.2%）
+    const HW = Math.round(TW0 * .075);
+    fitHand(hd, this.hands[0].length, HW);
+    hd.style.setProperty('--ov', -Math.round(TW0 * .032) + 'px');
     this.hands[0].forEach(c => {
-      const e = cardEl(c); e.style.setProperty('--cw', '46px');
+      const e = cardEl(c); e.style.setProperty('--cw', HW + 'px');
       if (this.sel.has(c.id)) e.classList.add('sel');
       e.onclick = () => this.tapCard(c);
       hd.appendChild(e);

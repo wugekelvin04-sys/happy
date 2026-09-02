@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.14.0';
+const APP_VERSION = '2.15.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -374,9 +374,16 @@ const RING = {
     { chip: { left: '2px', top: '30%' }, play: { left: '20%', top: '54%' } }
   ]
 };
-function applyPos(el, pos) {
+function applyPos(el, pos, safe) {
   if (!pos) return el;
-  ['left', 'right', 'top', 'bottom'].forEach(k => { if (pos[k] != null) el.style[k] = pos[k]; });
+  ['left', 'right', 'top', 'bottom'].forEach(k => {
+    if (pos[k] == null) return;
+    // safe=true 的元素（座位牌）贴边时要避开灵动岛 / home 条；
+    // 画布本身不缩进，所以这里用 max() 单独把它们推进来
+    if (safe && k === 'left') el.style.left = 'max(' + pos[k] + ', var(--sl,0px))';
+    else if (safe && k === 'right') el.style.right = 'max(' + pos[k] + ', var(--sr,0px))';
+    else el.style[k] = pos[k];
+  });
   if (pos.tx != null) el.style.transform = 'translateX(' + pos.tx + '%)';
   return el;
 }
@@ -388,7 +395,7 @@ function mkSeat(p, cfg, extraHTML) {
     + '<div class="info"><div class="nm">' + p.name + '</div>'
     + '<div class="bean gold-txt"><i></i><span class="bn">' + fmt(p.beans) + '</span></div>'
     + '<div class="ex">' + (extraHTML || '') + '</div></div>';
-  return applyPos(d, cfg.chip);
+  return applyPos(d, cfg.chip, true);
 }
 function mkPlaySlot(cfg) {
   const d = document.createElement('div'); d.className = 'play-slot';
@@ -775,7 +782,7 @@ function fitLayout() {
   const st = document.body.style;
   if (!rot) {
     ROT = false; app.style.width = ''; app.style.height = '';
-    ['--rot-t', '--rot-r', '--rot-b', '--rot-l'].forEach(k => st.removeProperty(k));
+    ['--sl', '--sr'].forEach(k => st.removeProperty(k));
     return;
   }
   ROT = true;
@@ -783,11 +790,10 @@ function fitLayout() {
   app.style.height = vw + 'px';
   const si = safeInsets();
   // 转过来之后：屏幕上边 = 界面左边（灵动岛那条），屏幕下边 = 界面右边（home 条）。
-  // 灵动岛这侧留个底，env 万一取不到 0 也不至于压住头像。
-  st.setProperty('--rot-l', Math.max(si.t, 34) + 'px');
-  st.setProperty('--rot-r', Math.max(si.b, 12) + 'px');
-  st.setProperty('--rot-t', Math.max(si.r, 4) + 'px');
-  st.setProperty('--rot-b', Math.max(si.l, 4) + 'px');
+  // 画布本身不缩进 —— 缩进会把宽高比从 2.17 压到 2.0，所有按百分比摆的元素
+  // 横向系统性偏小 10%，和官方就对不上了。改成只让「贴边的 UI」避让。
+  st.setProperty('--sl', Math.max(si.t, 34) + 'px');
+  st.setProperty('--sr', Math.max(si.b, 12) + 'px');
 }
 function bootstrap() {
   S = loadSave();
