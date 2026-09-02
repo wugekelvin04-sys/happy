@@ -36,6 +36,13 @@ body{
   background:#0b3a23;color:#fff;user-select:none;-webkit-user-select:none;touch-action:manipulation;
 }
 #app{position:fixed;inset:0}
+/* 强制横屏：设备竖着拿的时候，把整个界面转 90° 并交换宽高，
+   而不是切换成竖屏排版。iOS 不支持 screen.orientation.lock，只能这么做。
+   安全区也要跟着转：本地的左边其实是屏幕的上边。 */
+body.force-rot #app{inset:auto;left:50%;top:50%;box-sizing:border-box;
+  transform-origin:50% 50%;transform:translate(-50%,-50%) rotate(90deg);
+  padding-left:env(safe-area-inset-top);padding-right:env(safe-area-inset-bottom);
+  padding-top:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-left)}
 .screen{position:absolute;inset:0;display:none;flex-direction:column;
   padding-top:var(--safe-top);padding-bottom:var(--safe-bot);
   padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
@@ -285,24 +292,24 @@ body.land .match-wrap{gap:10px;padding:8px}
    火焰层是名次牌的「兄弟」并排在它前面，牌本身不透明，
    所以只有伸到牌外面的那一截火舌看得见 —— 效果是一圈火焰包住牌。 */
 .tag-wrap{position:relative;display:inline-flex}
-.tag-wrap .flames{position:absolute;inset:0;pointer-events:none;
-  opacity:calc(var(--fire,0) * .95)}
-.fire-base{position:absolute;inset:-14px -16px;pointer-events:none;border-radius:24px;
-  opacity:calc(var(--fire,0) * .5);will-change:transform,opacity;
-  background:radial-gradient(58% 72% at 50% 50%,
-    rgba(255,190,80,.85) 0%,rgba(255,120,30,.42) 42%,rgba(255,60,0,0) 76%);
-  animation:fireBreath 1.05s ease-in-out infinite alternate}
-@keyframes fireBreath{from{transform:scale(.97)}to{transform:scale(1.06)}}
-.flame-slot{position:absolute;transform-origin:0 0;pointer-events:none}
-/* 火焰用序列帧素材（icons/flame.png，18 帧，程序生成）。
-   播放靠内层 <i> 的 translateX + steps()，走合成器，不逐帧重绘。 */
-.fl{position:absolute;bottom:0;overflow:hidden;pointer-events:none;
-  will-change:transform,opacity}
-.fl > i{display:block;height:100%;width:1800%;
-  background:url(icons/flame.png) 0 0/100% 100% no-repeat;
-  will-change:transform;animation:flameSheet .8s steps(18) infinite}
-@keyframes flameSheet{to{transform:translateX(-100%)}}
-.fl.mir > i{transform-origin:center;scale:-1 1}
+/* 火焰是一整张「整圈火」序列图（icons/flamering.png）：5 个档位 × 14 帧。
+   整圈在生成时就已经在标量场里合并好了，所以只有一条连续描边，
+   不像拼贴那样出现互相穿插的边。火焰层排在不透明的名次牌前面，
+   牌面那块自然被盖住，看到的就是围着牌烧的一圈。
+   播放只靠内层 <i> 的 translateX + steps()，走合成器。 */
+.tag-wrap .flames{position:absolute;top:-52px;right:-40px;bottom:-34px;left:-40px;
+  pointer-events:none;overflow:hidden}
+.tag-wrap .flames.mir{transform:scaleX(-1)}
+.tag-wrap .flames > i{display:block;width:1400%;height:100%;
+  background-image:url(icons/flamering.png);background-repeat:no-repeat;
+  background-size:100% 500%;
+  will-change:transform;animation:ringRun .95s steps(14) infinite}
+@keyframes ringRun{to{transform:translateX(-100%)}}
+.flames.lv1 > i{background-position:0 100%}     /* 第 1 名最旺 */
+.flames.lv2 > i{background-position:0 75%}
+.flames.lv3 > i{background-position:0 50%}
+.flames.lv4 > i{background-position:0 25%}
+.flames.lv5 > i{background-position:0 0}
 .ember{position:absolute;bottom:3px;width:5px;height:5px;border-radius:50%;pointer-events:none;
   background:radial-gradient(circle at 40% 35%,#fff6cf,#ffab35 48%,#ff5c14);
   will-change:transform,opacity;animation:emberUp 1.5s ease-out infinite}

@@ -290,7 +290,9 @@ class SanguoGame {
     }
     const wrap = document.createElement('div');
     wrap.className = 'tag-wrap'; wrap.style.visibility = 'hidden';
-    wrap.innerHTML = '<div class="fire-base"></div><div class="flames"></div>';
+    // 整圈火焰：一个 <i> 播序列图，档位靠 .lvN 选行
+    wrap.innerHTML = '<div class="flames"><i style="animation-delay:-'
+      + (Math.random() * 1.4).toFixed(2) + 's"></i></div>';
     const tag = document.createElement('div');
     tag.className = 'reveal-tag'; tag.textContent = '—';
     wrap.appendChild(tag);
@@ -320,35 +322,10 @@ class SanguoGame {
     await sleep(cells.length * S + D * 2 + 40);
   }
   /* 沿名次牌外围生成一圈火舌：底边一排 + 两端各一簇，越靠前的名次越高越密 */
-  flamesHtml(fire) {
-    if (fire <= .04) return '';
-    let h = '';
-    // 每条火舌是一张 18 帧的赛璐璐序列图。是硬边分色的卡通火，
-    // 不能像粒子那样堆一大片，所以用少而大的几条围一圈就够。
-    const put = (left, top, rot, hgt) => {
-      const H = Math.round(hgt), W = Math.round(hgt * .8);   // 略放宽，火舌之间才叠得住
-      const dur = (.6 + Math.random() * .4).toFixed(2);
-      const dly = (Math.random() * .9).toFixed(2);
-      const mir = Math.random() < .5 ? ' mir' : '';
-      h += '<div class="flame-slot" style="left:' + left + ';top:' + top + ';transform:rotate(' + rot + 'deg)">'
-        + '<div class="fl' + mir + '" style="left:' + (-W / 2) + 'px;width:' + W + 'px;height:' + H + 'px">'
-        + '<i style="animation-duration:' + dur + 's;animation-delay:-' + dly + 's"></i></div></div>';
-    };
-    const H = 26 + fire * 30;                          // 火舌基准高度
-    const nTop = Math.round(4 + fire * 4);             // 上边：最旺
-    for (let k = 0; k < nTop; k++) {
-      const p = (k + .5) / nTop;
-      put((-5 + p * 110).toFixed(1) + '%', '0', (p - .5) * 16, H * (.78 + Math.random() * .42));
-    }
-    const nBot = Math.round(3 + fire * 3);             // 下边：矮一些
-    for (let k = 0; k < nBot; k++) {
-      const p = (k + .5) / nBot;
-      put((2 + p * 96).toFixed(1) + '%', '100%', 180 + (p - .5) * -16, H * (.45 + Math.random() * .25));
-    }
-    if (fire > .55) [['0%', -90], ['100%', 90]].forEach(([x, r]) => {   // 两端只在最旺时补一小簇
-      put(x, '50%', r, H * (.42 + Math.random() * .18));
-    });
-    return h;
+  /* 火势档位：1 最旺、5 最弱，0 表示不烧。素材里 5 个档位是整圈画好的。 */
+  fireLevel(fire) {
+    if (fire <= .04) return 0;
+    return Math.max(1, Math.min(5, 6 - Math.round(fire * 5)));
   }
   /* 名次徽章 + 牌型（+ 输赢豆）。名次越靠前烧得越旺，
      强度按「已开牌人数里的倒排位置」算：第 1 名满格，最后一名最弱。 */
@@ -364,8 +341,13 @@ class SanguoGame {
     tag.className = 'reveal-tag' + (rank === 1 ? ' first' : '');
     const n = Math.max(1, revealedN || 5);
     const fire = Math.max(0, Math.min(1, (n - rank + 1) / n));      // 倒排 → 0~1
-    wrap.style.setProperty('--fire', fire.toFixed(2));
-    wrap.querySelector('.flames').innerHTML = this.flamesHtml(fire);
+    const lv = this.fireLevel(fire);
+    const fl = wrap.querySelector('.flames');
+    // 每家随机左右翻一下，五个牌的火不至于一模一样
+    this.fireMir = this.fireMir || {};
+    if (this.fireMir[i] === undefined) this.fireMir[i] = Math.random() < .5;
+    fl.className = 'flames' + (lv ? ' lv' + lv : '') + (this.fireMir[i] ? ' mir' : '');
+    fl.style.display = lv ? '' : 'none';
     tag.innerHTML = '<span class="rank-badge rank-big rk' + Math.min(4, rank) + '">' + rank + '</span>'
       + '<span class="cn2">' + SG_CAMPS[play.camp].n + '</span>'
       + '<b class="fx-name lg">' + play.ev.name + '</b>';
@@ -466,14 +448,15 @@ class SanguoGame {
     for (let i = 0; i < 5; i++) this.setTag(i, plays[i], rank[i], rd[i], 5);
     await sleep(700);
     if (this.c.over) return;
-    /* 豆从输家的账户转到赢家的账户，到账时再滚动豆数 */
+    /* 豆从输家的账户转到赢家的账户，到账时再滚动豆数。
+       输赢数字名次牌旁边已经显示了，账户上不再重复冒一次。 */
     const ms = settleBeans(this.anchors, rd, () => {
       for (let i = 0; i < 5; i++) {
         const el = i === 0 ? $('#tMyBeans') : this.seats[i].querySelector('.bn');
         animNumber(el, Math.max(0, this.P[i].beans + this.delta[i]),
           Math.max(0, this.P[i].beans + this.delta[i] + rd[i]), 900);
       }
-    });
+    }, { labels: false });
     await sleep(ms);
     if (this.c.over) return;
 

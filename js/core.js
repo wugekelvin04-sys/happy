@@ -4,7 +4,7 @@
 'use strict';
 
 /* 版本号：发版时和 sw.js 里的 CACHE 一起改 */
-const APP_VERSION = '2.5.2';
+const APP_VERSION = '2.6.0';
 const APP_BUILD = '2026-09-01';
 
 const $ = s => document.querySelector(s);
@@ -384,7 +384,17 @@ function mkPlaySlot(cfg) {
   const d = document.createElement('div'); d.className = 'play-slot';
   return applyPos(d, cfg.play);
 }
-const rectOf = el => el.getBoundingClientRect();
+/* 强制横屏时 #app 带 transform，它就成了内部 position:fixed 元素的包含块，
+   于是「视口坐标」和「#app 内部坐标」差了一个 90° 旋转。飞豆、光圈这些
+   都按 #app 内部坐标定位，所以量到的 rect 要换算回去：
+   视口(vx,vy) → 内部(x,y) = (vy, 视口宽 − vx)。 */
+function rectOf(el) {
+  const r = el.getBoundingClientRect();
+  if (!document.body.classList.contains('force-rot')) return r;
+  const Vw = window.innerWidth;
+  return { left: r.top, top: Vw - r.left - r.width, width: r.height, height: r.width,
+    right: r.top + r.height, bottom: Vw - r.left };
+}
 /* ---------------------------------------------------------------
    动画统一走 Motion（js/vendor/motion.js，MIT）。
    Motion 底层用 Web Animations API，动画交给合成器，
@@ -538,8 +548,11 @@ function flyBeans(fromEl, toEl, amount) {
    2) 稍等一下再发豆，慢慢飞过去   （看清路线）
    3) 到账时赢家亮金圈 + 冒 +N，同时豆数滚动
    anchors 传各家显示豆数的那个元素，deltas 是本次每家的净输赢。
+   opt.labels=false 时不冒 ±N 的字（三国牌已经在名次牌旁边显示过了，
+   账户上再冒一遍就重复了），高亮圈还留着，起点终点仍然看得清。
    返回整段演示需要的毫秒数。 */
-function settleBeans(anchors, deltas, onArrive) {
+function settleBeans(anchors, deltas, onArrive, opt) {
+  const showLabel = !(opt && opt.labels === false);
   const wins = [], loses = [];
   deltas.forEach((d, i) => { if (d > 0) wins.push([i, d]); else if (d < 0) loses.push([i, -d]); });
   if (!wins.length || !loses.length) { if (onArrive) onArrive(); return 0; }
@@ -552,7 +565,7 @@ function settleBeans(anchors, deltas, onArrive) {
   /* 1) 先标出「豆从这几家出去」 */
   loses.forEach(([li, la]) => {
     pulseRingRect(rects[li], 'lose');
-    floatBean(anchors[li], -la);
+    if (showLabel) floatBean(anchors[li], -la);
   });
   /* 2) 停一下再发豆，让人看清起点 */
   setTimeout(() => {
@@ -565,7 +578,7 @@ function settleBeans(anchors, deltas, onArrive) {
   }, LEAD);
   /* 3) 到账 */
   setTimeout(() => {
-    wins.forEach(([wi, wa]) => { pulseRingRect(rects[wi]); floatBean(anchors[wi], wa); });
+    wins.forEach(([wi, wa]) => { pulseRingRect(rects[wi]); if (showLabel) floatBean(anchors[wi], wa); });
     if (onArrive) onArrive();
   }, LEAD + FLY - 120);
   return LEAD + FLY + 700;
@@ -623,8 +636,14 @@ function actBtn(txt, cls, fn) {
    ===================================================================== */
 /* 横屏时大厅用三栏布局 */
 function fitLayout() {
-  document.body.classList.toggle('land', window.innerWidth >= window.innerHeight);
-  [...document.querySelectorAll('.hand')].forEach(h => { });
+  const vw = window.innerWidth, vh = window.innerHeight, rot = vh > vw;
+  document.body.classList.toggle('force-rot', rot);
+  document.body.classList.add('land');            // 永远按横屏排版
+  const app = $('#app');
+  if (app) {                                      // 转过来之后宽高要对调
+    app.style.width = rot ? vh + 'px' : '';
+    app.style.height = rot ? vw + 'px' : '';
+  }
 }
 function bootstrap() {
   S = loadSave();
@@ -668,6 +687,8 @@ function bootstrap() {
   refreshMe();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { }));
+  // 支持的平台（安卓 / 桌面 PWA）直接锁横屏；iOS 不支持，靠上面的旋转兜底
+  try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => { }); } catch (e) { }
   setTimeout(checkUpdate, 1200);
 }
 function showRules(k) {
