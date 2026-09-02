@@ -148,14 +148,16 @@ class SanguoGame {
     this.seats = []; this.slots = [];
     /* 0=我(下方居中) 1=右下 2=右上 3=左上 4=左下
        账户（座位牌）紧贴各自的牌区：上排在牌上方，下排在牌下方，我的在下方正中 */
+    /* 位置和大小照官方截图按比例换算：头像贴最外侧，牌块往里 15%，
+       上下两排分别在 21% 和 51%，自己在中下方。 */
     const CH = [null,
-      { chip: { right: '2px', bottom: '2px' }, rev: true },   // 右下：账户在牌下面
-      { chip: { right: '2px', top: '2px' }, rev: true },       // 右上：账户在牌上面
-      { chip: { left: '2px', top: '2px' } },                   // 左上
-      { chip: { left: '2px', bottom: '2px' } }];               // 左下
-    const SP = [{ left: '50%', bottom: '40px', tx: -50 },
-      { right: '2px', bottom: '56px' }, { right: '2px', top: '56px' },
-      { left: '2px', top: '56px' }, { left: '2px', bottom: '56px' }];
+      { chip: { right: '2px', top: '50%' }, rev: true },        // 右下
+      { chip: { right: '2px', top: '13%' }, rev: true },        // 右上
+      { chip: { left: '2px', top: '13%' } },                    // 左上
+      { chip: { left: '2px', top: '50%' } }];                   // 左下
+    const SP = [{ left: '50%', top: '62%', tx: -50 },
+      { right: '15%', top: '51%' }, { right: '15%', top: '21%' },
+      { left: '15%', top: '21%' }, { left: '15%', top: '51%' }];
     for (let i = 1; i < 5; i++) {
       const el = mkSeat(this.P[i], CH[i], '<span class="hs">8 张</span>');
       b.appendChild(el); this.seats[i] = el;
@@ -285,7 +287,7 @@ class SanguoGame {
   /* 一张牌的正面（底池的牌换底色） */
   faceEl(c, pubSet, big) {
     const e = cardEl(c, '');
-    e.style.setProperty('--cw', big ? '50px' : '40px');
+    e.style.setProperty('--cw', big ? '24px' : '21px');
     if (pubSet.has(c.id)) e.classList.add('pub');
     return e;
   }
@@ -296,8 +298,9 @@ class SanguoGame {
     for (let k = 0; k < 5; k++) {
       const f = document.createElement('div'); f.className = 'flipper';
       const bk = backEl('');
-      bk.style.width = (big ? 50 : 40) + 'px';
-      bk.style.height = Math.round((big ? 50 : 40) * 1.44) + 'px';
+      // 牌宽照截图：5 张一组约占牌桌宽度的 13%
+      bk.style.width = (big ? 24 : 21) + 'px';
+      bk.style.height = Math.round((big ? 24 : 21) * 1.44) + 'px';
       f.appendChild(bk); row.appendChild(f);
     }
     // 名次牌型标在牌上方；输赢豆贴在牌的内侧，不占一行
@@ -327,7 +330,7 @@ class SanguoGame {
      强度按「已开牌人数里的倒排位置」算：第 1 名满格，最后一名最弱。 */
   setTag(i, play, rank, delta, revealedN) {
     setResultTag(this.slots[i], {
-      badge: rank, first: rank === 1,
+      badge: rank, first: rank === 1, sm: true,
       coinSide: SG_COIN_SIDE[i],                 // 名次徽章放在牌型条朝外的一侧
       fire: rankFire(rank, revealedN || 5),
       html: '<span class="camp-tag c' + play.camp + '">' + SG_CAMPS[play.camp].n + '</span>'

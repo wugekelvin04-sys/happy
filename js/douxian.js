@@ -132,8 +132,17 @@ class DouxianGame {
     /* 账户在上、结算标在牌块正上方、牌块在下，三段互不重叠。
        手机横屏牌桌只有 ~390px 高，账户和牌块之间必须留出标 + 火焰的高度
        （紧凑档约 44px），否则火会烧到账户小条上。 */
-    const CH = [null, { chip: { right: '2px', top: '19%' }, rev: true }, { chip: { left: '50%', top: '1px', tx: -50 } }, { chip: { left: '2px', top: '19%' } }];
-    const ZP = [{ left: '50%', bottom: '1%', tx: -50 }, { right: '2px', top: '51%' }, { left: '50%', top: '22%', tx: -50 }, { left: '2px', top: '51%' }];
+    /* 位置照 pp22 官方截图按比例换算（原图 2781×1280 与本牌桌 852×393 宽高比一致）：
+       每家都是「头像在外、牌块紧挨着往里」横向排一行；自己的三界在中下方一整行，
+       手牌在它下面。 */
+    const CH = [null,
+      { chip: { right: '6px', top: '29%' }, rev: true },     // 右家
+      { chip: { left: '22%', top: '5%' } },                  // 上家
+      { chip: { left: '6px', top: '29%' } }];                // 左家
+    const ZP = [{ left: '50%', top: '57%', tx: -50 },
+      { right: '14.5%', top: '29.5%' },
+      { left: '45.5%', top: '5%' },
+      { left: '14.5%', top: '29.5%' }];
     for (let i = 1; i < 4; i++) {
       const el = mkSeat(this.P[i], CH[i], '<span class="hs"></span>');
       b.appendChild(el); this.seats[i] = el;
@@ -166,7 +175,8 @@ class DouxianGame {
     const preview = (!mini && this.phase === 'place' && zi === this.activeZone)
       ? this.hands[0].filter(c => this.sel.has(c.id)) : [];
     /* 斗法阶段把牌放大，正在比拼的那一界再大一号 */
-    const cw = mini ? (hot ? 34 : show ? 26 : 21) : (hot ? 50 : show ? 38 : 30);
+    // 尺寸照截图：自己 42px（正在比拼的那界 46），别家 20px（比拼中 23）
+    const cw = mini ? (hot ? 23 : 20) : (hot ? 46 : 42);
     for (let i = 0; i < size; i++) {
       if (cards[i]) {
         if (reveal === false) {
@@ -262,15 +272,14 @@ class DouxianGame {
     const showOthers = this.phase === 'show';           // 只有斗法阶段才亮别家的牌
     for (let i = 1; i < 4; i++) {
       const box = this.slots[i]; box.innerHTML = '';
-      if (showOthers) {
-        const mr = document.createElement('div');
-        mr.className = 'mini-realms' + (i === 3 ? ' lft' : '') + (i === 2 ? ' top' : '');
-        for (let z = 0; z < 3; z++) {
-          if (this.round === 1 && z === 2) continue;
-          mr.appendChild(this.realmEl(i, z, true, true));
-        }
-        box.appendChild(mr);
+      // 布阵阶段也把别家的区域画成灰格（照原版），只是牌都盖着
+      const mr = document.createElement('div');
+      mr.className = 'mini-realms' + (i === 3 ? ' lft' : '');
+      for (let z = 0; z < 3; z++) {
+        if (this.round === 1 && z === 2) continue;
+        mr.appendChild(this.realmEl(i, z, true, showOthers));
       }
+      box.appendChild(mr);
       this.seats[i].querySelector('.bn').textContent = fmt(Math.max(0, this.P[i].beans + this.delta[i]));
       this.seats[i].querySelector('.hs').textContent =
         this.phase === 'place' ? '布阵中…' : '手牌 ' + this.hands[i].length;
@@ -278,8 +287,13 @@ class DouxianGame {
     const box0 = this.slots[0]; box0.innerHTML = '';
     const wrap = document.createElement('div'); wrap.className = 'realms';
     for (let z = 0; z < 3; z++) {
-      if (this.round === 1 && z === 2) continue;
       const el = this.realmEl(0, z, false, true);
+      if (this.round === 1 && z === 2) {          // 仙界第一回合还没开放，照原版画成灰格
+        el.classList.add('sealed');
+        el.querySelector('.rn').innerHTML = '仙 <span class="seal-txt">尚未开放</span>';
+        el.querySelector('.pw').textContent = '';
+        wrap.appendChild(el); continue;
+      }
       const need = DX_ZONES[z].size - this.field[0][z].length;
       const pw = el.querySelector('.pw');
       if (this.phase === 'show' && z === this.curZone) {
